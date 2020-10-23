@@ -1,2 +1,2 @@
 # AMR
-Code repository for the AMR project
+Code repository for the AMR project.
