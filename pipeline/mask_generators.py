@@ -10,6 +10,8 @@ import os
 from tqdm import tqdm
 
 def masks_from_VOTT(mask_path, output_path):
+
+    import json, numpy
     '''
     Locates the VOTT json file in the mask folder and generates single cell masks in the output folder, in the structure
     output_folder/annots/(image_name)/Cell1.png... Cell2.png....
@@ -30,15 +32,34 @@ def masks_from_VOTT(mask_path, output_path):
         for file in files:
             if file.endswith('export.json'):
                 tracker = tracker + 1
-
                 export_file = os.path.join(root, file)
 
     assert tracker == 1, 'Warning - either no export file found, or multiple copies exist in given folder. Aborting.'
-    print(tracker)
+
+    with open(export_file) as json_file: #Navigate through json structure and extract information
+        data = json.load(json_file)
+        assets = data['assets']
+
+        for image_key in assets:
+            image = assets[image_key]
+            image_metadata = image['asset']
+            image_filename, image_size = image_metadata['name'], image_metadata['size']
+
+
+
+
+            for region_key in image:
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
     import os
 
-    input_path = os.path.join('./')
-    masks_from_VOTT('./Data/Phenotype detections_18_08_20/Segregated/Combined/Segmentations', 'asdads')
+    input_path = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20','Segregated','Combined','WT+ETOH','Segmentations')
+    data = masks_from_VOTT(input_path, 'asdads')
