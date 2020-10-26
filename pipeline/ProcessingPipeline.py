@@ -10,9 +10,9 @@ from implementations import *
 
 import sys
 
-sys.path.append(r"C:\Users\User\Desktop\AMR_NIM\Pipeline") #Append paths such that sub-processes can find functions
-sys.path.append(r"C:\Users\User\Desktop\AMR_NIM\Pipeline\helpers.py")
-sys.path.append(r"C:\Users\User\Desktop\AMR_NIM\Pipeline\implementations.py")
+sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline") #Append paths such that sub-processes can find functions
+sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline\helpers.py")
+sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline\implementations.py")
 
 
 
@@ -87,7 +87,7 @@ class ProcessingPipeline:
     
 if __name__ == '__main__':
         
-    data_folder = r'C:\Users\zagajewski\Desktop\Phenotype detection_18_08_20\Segregated'
+    data_folder = r'C:\Users\zagajewski\Desktop\Phenotype detection_18_08_20'
     
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
     image_channels = ['NR']
