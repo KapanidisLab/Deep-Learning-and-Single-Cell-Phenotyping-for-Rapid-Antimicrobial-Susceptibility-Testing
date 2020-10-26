@@ -81,8 +81,8 @@ def interspread(iterable, separator):
             yield separator
             yield x
 
-    generator = interspread_gen(iterable,separator)
-    
+    generator = interspread_gen(iterable, separator)
+
     output = ''
     while True:
         try:
@@ -90,22 +90,35 @@ def interspread(iterable, separator):
             output = output + st
         except StopIteration:
             return output
-    
-def makedir(path): # Make directory if it doesn't exist yet.
+
+
+def makedir(path):  # Make directory if it doesn't exist yet.
     import os
     if not os.path.isdir(path):
         os.mkdir(path)
-        
-def im_2_uint16(image): #Rescale and convert image to uint16.
+
+
+def get_parent_path(
+        n):  # Generate correct parent directory, n levels up cwd. Useful for robust relative imports on different OS. 0 is the current cwd parent, 1 is the parent of the parent, etc
+    import os
+    assert n >= 0
+    cwd = os.getcwd()
+    parent = os.path.abspath(cwd)
+    for order in range(0, n, 1):
+        parent = os.path.dirname(parent)
+    return (parent)
+
+
+def im_2_uint16(image):  # Rescale and convert image to uint16.
     assert len(image.shape) == 2, 'Image must be 2D matrix '
     import numpy
-    
-    img = image.copy() #Soft copy problems otherwise
- 
-    img = img - img.min() #rescale bottom to 0
-    img = img / img.max() # rescale top to 1
-    img = img * 65535 #rescale (0,1) -> (0,65535)
-    img = numpy.around(img) #Round
+
+    img = image.copy()  # Soft copy problems otherwise
+
+    img = img - img.min()  # rescale bottom to 0
+    img = img / img.max()  # rescale top to 1
+    img = img * 65535  # rescale (0,1) -> (0,65535)
+    img = numpy.around(img)  # Round
     img = img.astype('uint16')
-     
+
     return img

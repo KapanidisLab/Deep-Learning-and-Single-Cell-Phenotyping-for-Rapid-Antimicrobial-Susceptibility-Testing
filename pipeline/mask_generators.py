@@ -19,7 +19,7 @@ def masks_from_VOTT(mask_path, output_path):
     mask_path : string
         path to directory with annotations
     output_path : string
-        p ath to directory where the output data structure will be created
+        path to directory where the output data structure will be created
 
     Returns
     -------
@@ -34,10 +34,11 @@ def masks_from_VOTT(mask_path, output_path):
                 export_file = os.path.join(root, file)
 
     assert tracker == 1, 'Warning - either no export file found, or multiple copies exist in given folder. Aborting.'
-    
+    print(tracker)
 
 
+if __name__ == '__main__':
+    import os
 
-
-if __name__ =='__main__':
-    masks_from_VOTT(r'C:\Users\User\Desktop\WT+ETOH', r'C:\Users\User\Desktop\WT+ETOH\test')
+    input_path = os.path.join('./')
+    masks_from_VOTT('./Data/Phenotype detections_18_08_20/Segregated/Combined/Segmentations', 'asdads')
