@@ -50,7 +50,7 @@ class ProcessingPipeline:
         self._Factory.register_implementation(('sorter','NIM'), SortNIM)
         self._Factory.register_implementation(('collector','NIM'), CollectNIM)
 
-        self._Factory.register_implementation(('fileoperation','TrainValTest_split'), TrainValTest_split)
+        self._Factory.register_implementation(('fileoperation','TrainTestVal_split'), TrainTestVal_split)
 
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
         self._Factory.register_implementation(('operation', 'Imadjust'), Imadjust)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     files = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
     output = os.path.join(get_parent_path(1),'Data', 'Dataset1_27_10_20')
 
-    pipeline.FileOp('TrainValTest_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.4,0.4,0.2), seed = 42 )
+    pipeline.FileOp('TrainTestVal_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.7,0.2,0.1), seed = 42 )
 
 
    # pipeline.ImageOp('Imadjust', index = 0)

@@ -15,7 +15,7 @@ def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for imag
     return True
 
 
-def TrainValTest_split(**kwargs):
+def TrainTestVal_split(**kwargs):
     '''
         Sorts through NIM default file structure and sorts files into subfolders based on condition type.
 
@@ -47,7 +47,7 @@ def TrainValTest_split(**kwargs):
         raise TypeError
 
 
-    import os,numpy,fnmatch,random, shutil
+    import os,numpy,fnmatch,random, distutils.file_util, distutils.dir_util
     from tqdm import tqdm
 
     (train_prop, test_prop, val_prop) = proportions
@@ -110,9 +110,10 @@ def TrainValTest_split(**kwargs):
 
         imgset = llist[key]
 
-        for elm in tqdm(imgset, total = len(imgset), unit = 'files', desc = 'Copying files...'):
-            shutil.copytree(elm[0],annotpath)
-            shutil.copy(elm[1],imagepath)
+        for elm in tqdm(imgset, total = len(imgset), unit = 'files', desc = 'Copying ' +str(key)+ ' files...'):
+            tail = os.path.split(elm[0])[1]
+            distutils.dir_util.copy_tree(elm[0],os.path.join(annotpath,tail))
+            distutils.file_util.copy_file(elm[1],imagepath)
 
 
 
