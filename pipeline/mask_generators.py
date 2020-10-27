@@ -55,6 +55,8 @@ def masks_from_VOTT(mask_path, output_path):
             image_filename, image_size = image_metadata['name'], image_metadata['size']
             image_size = (image_size['height'], image_size['width'])
 
+            image_filename = image_filename.split('.')[0] #Remove file extension
+
             regions = image['regions']
 
             makedir(os.path.join(output_path,'annots',image_filename)) #Create image subdirectory

@@ -50,6 +50,8 @@ class ProcessingPipeline:
         self._Factory.register_implementation(('sorter','NIM'), SortNIM)
         self._Factory.register_implementation(('collector','NIM'), CollectNIM)
 
+        self._Factory.register_implementation(('fileoperation','TrainValTest_split'), TrainValTest_split)
+
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
         self._Factory.register_implementation(('operation', 'Imadjust'), Imadjust)
         self._Factory.register_implementation(('operation', 'Iminvert'), Iminvert)
@@ -71,7 +73,14 @@ class ProcessingPipeline:
         self.path = collector(self.path,**kwargs) #call and and update path
         
         self.collected = True #Set status flag
-            
+
+    def FileOp(self, op, **kwargs):
+
+        operation = self._Factory._create(('fileoperation',op))
+        operation(**kwargs)
+
+        self.opchain.append(str(operation))
+
     def ImageOp(self, op, **kwargs):
             
         batch_processor = self._Factory._create(('operation','BatchProcessor'))
@@ -86,17 +95,26 @@ class ProcessingPipeline:
     
     
 if __name__ == '__main__':
-        
-    data_folder = r'C:\Users\zagajewski\Desktop\Phenotype detection_18_08_20'
+
+    import os
+    data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated')
     
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-    image_channels = ['NR']
+    image_channels = ['NR','DAPI']
     img_dims = (684,840,30)
     
     pipeline = ProcessingPipeline(data_folder, 'NIM')
     #pipeline.Sort(path = data_folder,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
-    pipeline.Collect(path = data_folder,cond_IDs = cond_IDs, image_channels = image_channels)
-    
+    #pipeline.Collect(path = data_folder,cond_IDs = cond_IDs, image_channels = image_channels)
+
+
+    annots = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH', 'Segmentations', 'annots')
+    files = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
+    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_27_10_20')
+
+    pipeline.FileOp('TrainValTest_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.4,0.4,0.2), seed = 42 )
+
+
    # pipeline.ImageOp('Imadjust', index = 0)
    # pipeline.ImageOp('WaveletEnhance', sigmas = (1,5), mu = 2, scales = (1,200,1), index = 0)
    # pipeline.ImageOp('Iminvert', index = 0)
