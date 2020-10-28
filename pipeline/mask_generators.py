@@ -9,10 +9,9 @@ from helpers import *
 import os
 from tqdm import tqdm
 
-def masks_from_VOTT(mask_path, output_path):
+def masks_from_VOTT(**kwargs):
 
     import json, numpy, skimage,skimage.io,skimage.draw, sys
-    from PIL import Image
 
     '''
     Locates the VOTT json file in the mask folder and generates single cell masks in the output folder, in the structure
@@ -30,6 +29,14 @@ def masks_from_VOTT(mask_path, output_path):
     -------
 
     '''
+
+    mask_path = kwargs.get('mask_path', False)
+    output_path = kwargs.get('output_path', False)
+
+    if not all([mask_path, output_path]):  # Verify input
+        raise TypeError
+
+
     tracker = 0
     for root, dirs, files in tqdm(os.walk(mask_path, topdown=True), total = dircounter(mask_path), unit = 'files', desc = 'Searching directory for export file.'):
         for file in files:
@@ -101,4 +108,4 @@ if __name__ == '__main__':
 
     input_path = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20','Segregated','Combined','WT+ETOH','Segmentations')
     output_path = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH', 'Segmentations')
-    data = masks_from_VOTT(input_path, output_path)
+    masks_from_VOTT(input_path, output_path)
