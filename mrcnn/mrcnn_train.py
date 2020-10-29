@@ -40,6 +40,8 @@ from sklearn.model_selection import train_test_split
 from skimage import img_as_bool
 from skimage.transform import resize
 
+from pipeline.helpers import *
+
 print('Python       :', sys.version.split('\n')[0])
 print('Numpy        :', np.__version__)
 print('Skimage      :', skimage.__version__)
@@ -159,40 +161,14 @@ class BacConfig(config.Config):
 if __name__ == '__main__':
     
     DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0 #Select device to train on
-    TOPDIR = r'.'
-    WEIGHTSDIR = None  #Foldername with weights. Training will be resumed at the last iteration
+    WEIGHTSDIR = os.path.join(get_parent_path(1), 'Data', 'mask_rcnn_coco.h5')  #Foldername with weights. Training will be resumed at the last iteration
 
 
-    data_dir = os.path.join(TOPDIR,'Dataset_hafez_pretrain')
-    test_dir = os.path.join(TOPDIR,'Dataset_hafez_validate')
-    coco_dir = os.path.join(TOPDIR,'mask_rcnn_coco.h5') #For initializations from coco weights
+    data_dir = os.path.join(get_parent_path(1),'Data','Dataset1_27_10_20','Train')
+    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Validation')
 
 
-    if type(WEIGHTSDIR) is str: # If a folder is provided, find last weights and use that
 
-        max = 0
-        weights = os.path.join(TOPDIR, WEIGHTSDIR)
-
-
-        for file in os.listdir(weights):
-            if file.endswith('.h5'):  # look at only weights files
-
-                file = re.split('\\.|_', file)
-
-                modeltype = ''.join([file[0], '_', file[1]])
-                tag = file[2]
-                epoch = int(file[3])
-
-                ext = file[4]
-                max = epoch if epoch > max else max
-
-
-        last = ''.join([modeltype, '_', tag, '_', str(max).zfill(4), '.', ext])  # Assemble highest filename
-        weight_dir = os.path.join(TOPDIR, WEIGHTSDIR, last)  # Path to latest weights
-
-    else: #If not, restart from coco
-
-        weight_dir = coco_dir
 
     #Load sets
     
@@ -201,13 +177,13 @@ if __name__ == '__main__':
     train_set.prepare()
     
     val_set = BacDataset()
-    val_set.load_dataset(test_dir)
+    val_set.load_dataset(val_dir)
     val_set.prepare()
 
     print('--------------------------------------------')
     print('Train: %d' % len(train_set.image_ids))
     print('Val: %d' % len(val_set.image_ids))
-    print('Weights: ' + weight_dir)
+    print('Weights: ' + WEIGHTSDIR)
     print('--------------------------------------------')
 
    
@@ -252,7 +228,7 @@ if __name__ == '__main__':
 
     with tf.device(DEVICE):
         trmodel = modellib.MaskRCNN(mode = 'training', model_dir='./', config = config)
-        trmodel.load_weights(weight_dir, by_name = True, exclude=['mrcnn_class_logits','mrcnn_bbox_fc', 'mrcnn_bbox', 'mrcnn_mask'] )
+        trmodel.load_weights(WEIGHTSDIR, by_name = True, exclude=['mrcnn_class_logits', 'mrcnn_bbox_fc', 'mrcnn_bbox', 'mrcnn_mask'])
 
         trmodel.train(train_set, val_set, learning_rate = config.LEARNING_RATE, epochs = 50, layers = 'heads', augmentation = augmentation)
         trmodel.train(train_set, val_set, learning_rate=config.LEARNING_RATE, epochs=100, layers='all', augmentation = augmentation)

@@ -52,6 +52,7 @@ from mrcnn_predict import PredictionConfig
 import imgaug.augmenters as iaa  # import augmentation library
 import sklearn.metrics
 
+from pipeline.helpers import *
 
 def print_cm(cm, labels, hide_zeroes=False, hide_diagonal=False, hide_threshold=None):
     """pretty print for confusion matrixes"""
@@ -215,17 +216,7 @@ if __name__ == '__main__':
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)  # Log errors only.
 
     DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0
-    TOPDIR = r'.'
-    WEIGHTSDIR = 'Early_augmentation_trials/trial_rotate+translate+defocus+noise+cutout_lr=0.003_bs=2_t=20200608T1653/'  # Foldername with weights. Prediction will run with latest weights.
-
-    if type(WEIGHTSDIR) is str:  # If a folder is provided, find last weights and use that
-
-        max = 0
-        weights = os.path.join(TOPDIR, WEIGHTSDIR)
-        valid_files = [files for files in os.listdir(weights) if files.endswith('.h5')]  # Pick files with h5 ext
-
-        assert len(valid_files) == 1, 'More than one valid weight file found. Sorting not implemented yet.'
-        weight_dir = os.path.join(TOPDIR, WEIGHTSDIR, valid_files[0])  # Path to latest weights
+    WEIGHTSDIR = os.path.join(get_parent_path(0),'trial_rotate+translate+defocus+noise+cutout_lr=0.003_bs=2_t=20201029T1746', 'mask_rcnn_trial_rotate+translate+defocus+noise+cutout_lr=0.003_bs=2_t=.h5') # Foldername with weights. Prediction will run with latest weights.
 
     # create config
     config = PredictionConfig()  # Import test config
@@ -238,8 +229,9 @@ if __name__ == '__main__':
     # TODO: Merge training and prediction configs for more robustness
 
     # Data for prediction
-    testdir = os.path.join(TOPDIR, 'Dataset_hafez_test')
-    traindir = os.path.join(TOPDIR, 'Dataset_hafez_pretrain')
+    testdir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Test')
+    traindir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Train')
+
 
     dataset = BacDataset()
     dataset.load_dataset(testdir)
@@ -252,7 +244,7 @@ if __name__ == '__main__':
     print('----------------------------------------------------------')
     print('Train: ', len(dataset_train.image_ids))
     print('Test: ', len(dataset.image_ids))
-    print('Weights: ' + weight_dir)
+    print('Weights: ' + WEIGHTSDIR)
     print('Class names: ', dataset.class_names)
     print('Class IDs', dataset.class_ids)
     print('----------------------------------------------------------')
@@ -438,9 +430,9 @@ if __name__ == '__main__':
     # define the model
     with tf.device(DEVICE):
         model = modellib.MaskRCNN(mode='inference', model_dir='./', config=config)
-        model.load_weights(weight_dir, by_name=True)
+        model.load_weights(WEIGHTSDIR, by_name=True)
 
-        image_id = 1 #Which image to inspect
+        image_id = 0 #Which image to inspect
 
         image, image_meta, gt_class_id, gt_bbox, gt_mask = \
             modellib.load_image_gt(dataset, config, image_id, use_mini_mask=False)
@@ -473,6 +465,17 @@ if __name__ == '__main__':
                                verbose=1)
 
         image_ubyte = skimage.img_as_ubyte(image)  # Convert to 8bit
+
+        #Put R+G channels together into B for ease of display
+        import numpy
+     #   R,G = image_ubyte[:,:,0], image_ubyte[:,:,1]
+    #    T = R+G #Make one channel
+   #     T = T- T.min()
+  #      T = T/T.max()
+ #       T = T*244
+#
+   #     image_ubyte = T
+
 
         visualize.display_differences(
             image_ubyte,

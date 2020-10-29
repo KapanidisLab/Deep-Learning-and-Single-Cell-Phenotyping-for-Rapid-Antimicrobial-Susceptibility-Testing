@@ -179,9 +179,9 @@ def display_differences(image,
         gt_box, gt_class_id, gt_mask,
         pred_box, pred_class_id, pred_score, pred_mask,
         iou_threshold=iou_threshold, score_threshold=score_threshold)
-    # Ground truth = green. Predictions = red
-    colors = [(0, 1, 0, .8)] * len(gt_match)\
-           + [(1, 0, 0, 1)] * len(pred_match)
+    # Ground truth = yellow. Predictions = cyan
+    colors = [(1, 1, 0, 0.8)] * len(gt_match)\
+           + [(0, 1, 1, 0.8)] * len(pred_match)
     # Concatenate GT and predictions
     class_ids = np.concatenate([gt_class_id, pred_class_id])
     scores = np.concatenate([np.zeros([len(gt_match)]), pred_score])
@@ -194,7 +194,7 @@ def display_differences(image,
             if pred_match[i] > -1 else overlaps[i].max()))
             for i in range(len(pred_match))]
     # Set title if not provided
-    title = title or "Ground Truth and Detections\n GT=green, pred=red, captions: score/IoU"
+    title = title or "Ground Truth and Detections\n GT=yellow, pred=cyan, captions: score/IoU"
     # Display
     display_instances(
         image,

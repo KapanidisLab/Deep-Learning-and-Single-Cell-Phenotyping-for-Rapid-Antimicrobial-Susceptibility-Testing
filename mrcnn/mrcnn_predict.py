@@ -62,9 +62,6 @@ from mrcnn import visualize
 
 from mrcnn_train import BacDataset, BacConfig
 
-from custom import Seg_to_OUFTI
-
-
 
 class PredictionConfig(BacConfig): #Inherit from training config, perhaps make some changes
     NAME = 'bac_pred_cfg'
