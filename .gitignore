@@ -131,3 +131,4 @@ dmypy.json
 #---------------------Project specific exclusions---------------------
 
 **/Data/**/*
+**/*.h5

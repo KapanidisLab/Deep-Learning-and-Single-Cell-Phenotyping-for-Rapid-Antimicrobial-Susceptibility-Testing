@@ -466,16 +466,6 @@ if __name__ == '__main__':
 
         image_ubyte = skimage.img_as_ubyte(image)  # Convert to 8bit
 
-        #Put R+G channels together into B for ease of display
-        import numpy
-     #   R,G = image_ubyte[:,:,0], image_ubyte[:,:,1]
-    #    T = R+G #Make one channel
-   #     T = T- T.min()
-  #      T = T/T.max()
- #       T = T*244
-#
-   #     image_ubyte = T
-
 
         visualize.display_differences(
             image_ubyte,
