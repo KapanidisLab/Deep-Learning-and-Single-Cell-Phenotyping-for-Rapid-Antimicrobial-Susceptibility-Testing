@@ -99,14 +99,14 @@ class ProcessingPipeline:
 if __name__ == '__main__':
 
     import os
-    data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated')
+    data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20')
     
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
     image_channels = ['NR','DAPI']
     img_dims = (684,840,30)
     
     pipeline = ProcessingPipeline(data_folder, 'NIM')
-    #pipeline.Sort(path = data_folder,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
+    pipeline.Sort(path = data_folder,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
     pipeline.Collect(path = data_folder,cond_IDs = cond_IDs, image_channels = image_channels)
 
 
