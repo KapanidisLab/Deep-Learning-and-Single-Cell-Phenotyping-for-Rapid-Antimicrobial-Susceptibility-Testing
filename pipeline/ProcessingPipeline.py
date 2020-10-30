@@ -106,8 +106,8 @@ if __name__ == '__main__':
     img_dims = (684,840,30)
     
     pipeline = ProcessingPipeline(data_folder, 'NIM')
-    pipeline.Sort(path = data_folder,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
-    pipeline.Collect(path = data_folder,cond_IDs = cond_IDs, image_channels = image_channels)
+    pipeline.Sort(pipeline.path,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
+    pipeline.Collect(pipeline.path,cond_IDs = cond_IDs, image_channels = image_channels)
 
 
     #--- GENERATE MASKS FROM SEGMENTATION FILE---

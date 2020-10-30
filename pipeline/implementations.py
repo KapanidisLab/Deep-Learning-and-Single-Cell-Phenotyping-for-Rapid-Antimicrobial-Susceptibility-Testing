@@ -115,6 +115,32 @@ def TrainTestVal_split(**kwargs):
             distutils.dir_util.copy_tree(elm[0],os.path.join(annotpath,tail))
             distutils.file_util.copy_file(elm[1],imagepath)
 
+def Equalize_Channels(data_folder, **kwargs):
+
+    cond_IDs = kwargs.get('cond_IDs')
+    channels = kwargs.get('channels')
+
+    if not all([cond_IDs,channels]):
+        raise TypeError
+
+    import os, skimage.io
+
+    for folder in os.listdir(data_folder):
+        assert folder in cond_IDs, 'ERROR - A folder not matching given experimental condtions found in given directory. Aborting.'
+
+        for file in os.listdir(os.path.join(data_folder,folder)):
+            impath = os.path.join(data_folder,folder,file)
+
+            image = skimage.io.imread(impath)
+
+            channel_count = len(channels)
+            assert image.shape == (_,_,channel_count), 'ERROR '
+
+
+
+
+
+
 
 
 
