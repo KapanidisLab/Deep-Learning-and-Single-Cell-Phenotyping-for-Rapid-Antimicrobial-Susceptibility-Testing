@@ -143,7 +143,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]
-        ax.text(x1, y1 + 8, caption,
+        ax.text(x1, y1 + 8, caption,    #EDIT - Comment out captions
                 color='w', size=11, backgroundcolor="none")
 
         # Mask

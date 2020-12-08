@@ -117,7 +117,7 @@ class BacDataset(utils.Dataset):
     
 class BacConfig(config.Config):
     NAME = 'BAC'
-    
+
     NUM_CLASSES = 1+1 #BG and Cell
     
     STEPS_PER_EPOCH = 100 #This is calculated later
@@ -164,8 +164,8 @@ if __name__ == '__main__':
     WEIGHTSDIR = os.path.join(get_parent_path(1), 'Data', 'mask_rcnn_coco.h5')  #Foldername with weights. Training will be resumed at the last iteration
 
 
-    data_dir = os.path.join(get_parent_path(1),'Data','Dataset1_27_10_20','Train')
-    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Validation')
+    data_dir = os.path.join(get_parent_path(1),'Data','Dataset1_05_12_20','Train')
+    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Validation')
 
 
 
@@ -198,8 +198,8 @@ if __name__ == '__main__':
         iaa.Sometimes(0.5, iaa.Affine(rotate=(-45, 45))), #Rotate up to 45 deg either way, 50% prob
         iaa.Sometimes(0.5, iaa.Affine(translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)})), #Translate up to 20% on either axis independently, 50% prob
         iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0,2.0))),  # Gaussian convolve 50% prob
-        iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.05 * 65535))),  # up to 5% PSNR 50% prob
-        iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=31628.69))
+        #iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.05 * 65535))),  # up to 5% PSNR 50% prob
+        iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=0))
         ]
 
     augmentation = iaa.Sequential(seq) #Execute in sequence from 1st to last
@@ -216,7 +216,7 @@ if __name__ == '__main__':
     LR = 0.003
     BS = 2
 
-    config.NAME = ''.join(['trial_rotate+translate+defocus+noise+cutout_', 'LR=', str(LR), '_BS=', str(BS), '_T='])
+    config.NAME = ''.join(['trial1_equalized_channels_dataset1', 'LR=', str(LR), '_BS=', str(BS), '_T='])
     config.LEARNING_RATE = LR
     config.IMAGES_PER_GPU = BS
     config.BATCH_SIZE = BS #This needs to be manually updated here because its first computer by init

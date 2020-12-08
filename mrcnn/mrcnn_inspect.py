@@ -124,7 +124,7 @@ def compute_pixel_metrics(dataset, image_ids):  # Custom function.
         for unique_class_id in np.unique(gt_class_id):
             idx = [i for i, cls in enumerate(gt_class_id) if cls == unique_class_id]  # Find matching indicies
             gt_masks_perclass = gt_mask[:,:,idx]  # extract masks per class
-            pred_masks_perclass = results[0]['masks'][:,:,idx]
+            pred_masks_perclass = results[0]['masks']
 
             assert ((gt_masks_perclass == 0) | (gt_masks_perclass == 1)).all()  # Assert masks are strictly binary
             assert ((pred_masks_perclass == 0) | (pred_masks_perclass == 1)).all()
@@ -216,21 +216,23 @@ if __name__ == '__main__':
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)  # Log errors only.
 
     DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0
-    WEIGHTSDIR = os.path.join(get_parent_path(0),'trial_rotate+translate+defocus+noise+cutout_lr=0.003_bs=2_t=20201029T1746', 'mask_rcnn_trial_rotate+translate+defocus+noise+cutout_lr=0.003_bs=2_t=.h5') # Foldername with weights. Prediction will run with latest weights.
+    WEIGHTSDIR = os.path.join(get_parent_path(0),'trial1_equalized_channels_dataset1lr=0.003_bs=2_t=20201205T1841', 'mask_rcnn_trial1_equalized_channels_dataset1lr=0.003_bs=2_t=.h5') # Foldername with weights. Prediction will run with latest weights.
 
     # create config
     config = PredictionConfig()  # Import test config
     config.IMAGES_PER_GPU = 1
     config.BATCH_SIZE = 1
     config.display()
+    #config.DETECTION_NMS_THRESHOLD = 0.2
+    #config.POST_NMS_ROIS_INFERENCE = 1000
 
     config_train = BacConfig()  # Import training config
 
     # TODO: Merge training and prediction configs for more robustness
 
     # Data for prediction
-    testdir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Test')
-    traindir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_27_10_20', 'Train')
+    testdir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Test')
+    traindir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Train')
 
 
     dataset = BacDataset()
@@ -403,8 +405,8 @@ if __name__ == '__main__':
         iaa.Sometimes(0.5, iaa.Affine(translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)})),
         # Translate up to 20% on either axis independently, 50% prob
         iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0, 2.0))),  # Gaussian convolve 50% prob
-        iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.05 * 65535))),  # up to 5% PSNR noise 50% prob
-        iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=31628.69))
+        #iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.05 * 65535))),  # up to 5% PSNR noise 50% prob
+        iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=0))
     ]
 
     augmentation = iaa.Sequential(seq)  # Execute in sequence from 1st to last
@@ -414,6 +416,7 @@ if __name__ == '__main__':
     for i in range(limit):
         image, image_meta, class_ids, bbox, mask = modellib.load_image_gt(
             dataset_train, config_train, image_id, use_mini_mask=False, augment=False, augmentation=augmentation)
+        image[image == 0] = 25000
         visualize.display_instances(skimage.img_as_ubyte(image), bbox, mask, class_ids,
                                     dataset.class_names, ax=ax[i // 2, i % 2],
                                     show_mask=False, show_bbox=False, title='Augmentation example {}'.format(i))

@@ -53,6 +53,8 @@ class ProcessingPipeline:
 
         self._Factory.register_implementation(('fileoperation','TrainTestVal_split'), TrainTestVal_split)
         self._Factory.register_implementation(('fileoperation', 'masks_from_VOTT'), masks_from_VOTT)
+        self._Factory.register_implementation(('fileoperation', 'masks_from_OUFTI'), masks_from_OUFTI)
+        self._Factory.register_implementation(('fileoperation', 'Equalize_Channels'), Equalize_Channels)
 
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
         self._Factory.register_implementation(('operation', 'Imadjust'), Imadjust)
@@ -63,8 +65,11 @@ class ProcessingPipeline:
         instrument = self.instrument        
         sorter = self._Factory._create(('sorter',instrument)) #Fetch right sorter
 
-        self.path = sorter(self.path,**kwargs) #call sorter and update path       
-        
+        print('-------------------------')
+        print('Executing Sort:', str(instrument))
+        print('-------------------------')
+
+        self.path = sorter(self.path,**kwargs) #call sorter and update path
         self.sorted = True #Set status flag
             
     def Collect(self, **kwargs):
@@ -72,13 +77,22 @@ class ProcessingPipeline:
         
         instrument = self.instrument        
         collector = self._Factory._create(('collector',instrument)) #Fetch right collector
+
+        print('-------------------------')
+        print('Executing Collect:',str(instrument))
+        print('-------------------------')
+
         self.path = collector(self.path,**kwargs) #call and and update path
-        
         self.collected = True #Set status flag
 
     def FileOp(self, op, **kwargs):
 
         operation = self._Factory._create(('fileoperation',op))
+
+        print('-------------------------')
+        print('Executing:',str(op))
+        print('-------------------------')
+
         operation(**kwargs)
 
         self.opchain.append(str(operation))
@@ -87,10 +101,13 @@ class ProcessingPipeline:
             
         batch_processor = self._Factory._create(('operation','BatchProcessor'))
         operation = self._Factory._create(('operation', op))
-            
+
+        print('-------------------------')
+        print('Executing:',str(op))
+        print('-------------------------')
+
         batch_processor(self.path, operation, op, **kwargs )
-            
-        
+
         self.opchain.append(str(operation))
 
             
@@ -102,12 +119,12 @@ if __name__ == '__main__':
     data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20')
     
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-    image_channels = ['NR','DAPI']
+    image_channels = ['NR','NR','NR']
     img_dims = (684,840,30)
     
     pipeline = ProcessingPipeline(data_folder, 'NIM')
-    pipeline.Sort(pipeline.path,cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
-    pipeline.Collect(pipeline.path,cond_IDs = cond_IDs, image_channels = image_channels)
+    pipeline.Sort(cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
+    pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels)
 
 
     #--- GENERATE MASKS FROM SEGMENTATION FILE---
@@ -116,17 +133,18 @@ if __name__ == '__main__':
                               'WT+ETOH', 'Segmentations')
     output_path = input_path #Write in same directory
 
-    pipeline.FileOp('masks_from_VOTT', mask_path = input_path, output_path = output_path)
+    pipeline.FileOp('masks_from_OUFTI', mask_path = input_path, output_path = output_path, image_size = (684,420))
+
+    #--- EQUALIZE CHANNELS---
+
+    #pipeline.FileOp('Equalize_Channels', data_folder = pipeline.path, cond_IDs = cond_IDs, image_channels = image_channels)
 
     #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS---
     annots = os.path.join(input_path, 'annots')
     files = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
-    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_27_10_20')
+    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_05_12_20')
 
-    pipeline.FileOp('TrainTestVal_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.7,0.2,0.1), seed = 42 )
+    pipeline.FileOp('TrainTestVal_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.7,0.2,0.1), seed = 40 )
 
 
-   # pipeline.ImageOp('Imadjust', index = 0)
-   # pipeline.ImageOp('WaveletEnhance', sigmas = (1,5), mu = 2, scales = (1,200,1), index = 0)
-   # pipeline.ImageOp('Iminvert', index = 0)
     

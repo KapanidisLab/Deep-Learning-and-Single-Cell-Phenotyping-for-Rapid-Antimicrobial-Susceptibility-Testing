@@ -95,17 +95,107 @@ def masks_from_VOTT(**kwargs):
     #At the end, print a summary
 
     sys.stdout.flush()
-    print('\n')
     print('')
-    print('-------------------------------------------')
     print('Generated', ':', str(mask_total), 'masks out of', str(image_total), 'images.')
-    print('-------------------------------------------')
     sys.stdout.flush()
+
+def masks_from_OUFTI(**kwargs):
+
+    '''
+    Locates the OUFTI export .mat files in the mask folder and generates single cell masks in the output folder, in the structure
+    output_folder/annots/(image_name)/Cell1.png... Cell2.png....
+
+    Parameters
+    ----------
+    mask_path : string
+        path to directory with annotations
+    output_path : string
+        path to directory where the output data structure will be created.
+        Function creates a folder called annots. Inside annots, each subdir is a separate image, inside which are binary masks.
+    img_size : 2-tuple
+        (x,y) image size, since metadata is not saved by OUFTI
+    Returns
+    -------
+
+    '''
+
+    mask_path = kwargs.get('mask_path', False)
+    output_path = kwargs.get('output_path', False)
+    image_size = kwargs.get('image_size', False)
+
+    if not all([mask_path, output_path]):  # Verify input
+        raise TypeError
+    import scipy.io, skimage.io, skimage.draw, os, numpy, sys
+    from PIL import Image
+
+    makedir(os.path.join(output_path, 'annots'))  # Create folder with masks
+    image_total = 0
+    mask_total = 0
+    error_count = 0
+    meshless_cell_count = 0
+
+    #Find all annotation files that end with .mat
+    tracker = 0
+    for root, dirs, files in os.walk(mask_path, topdown=True):
+        for file in files:
+            if file.endswith('.mat'):
+
+                img_filename = file.split('.')[0]
+
+                #Load annot file for image
+                loadpath = os.path.join(root,file)
+                annotfile = scipy.io.loadmat(loadpath)
+
+                try:
+                    cellData = annotfile['cellList']['meshData'][0][0][0][0][0] #Load data for all cells in image
+                except:
+                    error_count = error_count + 1
+                    continue
+
+                makedir(os.path.join(output_path, 'annots', img_filename))  # Create folder with masks
+
+                cellcount=1
+                for key,cell in dict(numpy.ndenumerate(cellData)).items(): #Iterate through all cells in image
+
+                    mesh = cell['mesh'] #Get attribute
+
+                    #Attempt to unpack. Skip if empty.
+                    mesh = mesh[0][0]
+                    if mesh.shape == (1,1):
+                        meshless_cell_count = meshless_cell_count +1
+                        continue
+
+                    mesh = numpy.concatenate((mesh[:,:2],mesh[:,2:]),axis=0) #Reslice array to a more conventional format
+                    mesh_tran = numpy.zeros(mesh.shape)
+
+                    x=mesh[:,0]
+                    y=mesh[:,1]
+                    mesh_tran[:,0] = y #Swap columns to match polygon2mask
+                    mesh_tran[:,1] = x
+
+                    mask = skimage.draw.polygon2mask(image_size, mesh_tran)
+
+                    filename = 'Cell' + str(cellcount) + '.bmp'  # Mask filename
+                    savepath = os.path.join(output_path, 'annots', img_filename, filename)  # Assemble whole save path
+
+                    Image.fromarray(mask).save(savepath)
+
+                    mask_total = mask_total + 1
+                    cellcount = cellcount + 1
+                image_total = image_total + 1
+
+    sys.stdout.flush()
+    print('')
+    print('Generated', ':', str(mask_total), 'masks out of', str(image_total), 'images.')
+    print('cellList read errors:', error_count)
+    print('Meshless cells found:', meshless_cell_count )
+    sys.stdout.flush()
+
 
 
 if __name__ == '__main__':
     import os
 
-    input_path = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20','Segregated','Combined','WT+ETOH','Segmentations')
-    output_path = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH', 'Segmentations')
-    masks_from_VOTT(input_path, output_path)
+    input_path = os.path.join(r'C:\Users\zagajewski\Desktop\AMR_png_images_for_segmentation\18_08_20\WT_fakePC')
+    output_path = os.path.join(r'C:\Users\zagajewski\Desktop\AMR_png_images_for_segmentation\18_08_20\WT_fakePC')
+    masks_from_OUFTI(mask_path=input_path, output_path=output_path)

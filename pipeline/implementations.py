@@ -115,35 +115,109 @@ def TrainTestVal_split(**kwargs):
             distutils.dir_util.copy_tree(elm[0],os.path.join(annotpath,tail))
             distutils.file_util.copy_file(elm[1],imagepath)
 
-def Equalize_Channels(data_folder, **kwargs):
+def Equalize_Channels(**kwargs):
+    '''
+    Subracts the mean of all tif images downstream of data_folder, and returns as float64 images.
 
+    :param data_folder: string
+        path from which to search down the tree
+            cond_IDs: string
+        condition_IDs to include
+
+    :return:
+    '''
+
+    data_folder = kwargs.get('data_folder')
     cond_IDs = kwargs.get('cond_IDs')
-    channels = kwargs.get('channels')
 
-    if not all([cond_IDs,channels]):
+    if not all([data_folder,cond_IDs]):
         raise TypeError
 
-    import os, skimage.io
+    import os, skimage.io, numpy
 
-    for folder in os.listdir(data_folder):
-        assert folder in cond_IDs, 'ERROR - A folder not matching given experimental condtions found in given directory. Aborting.'
+    intensity_total = numpy.zeros(3)
+    pix_total = numpy.zeros(3)
+    pix_min = numpy.zeros(3)
+    pix_max = numpy.zeros(3)
 
+    def _CalculateStats(data_folder): #Internal function to calculate stats
+
+        intensity_total = numpy.zeros(3)
+        pix_total = numpy.zeros(3)
+        pix_min = numpy.zeros(3)
+        pix_max = numpy.zeros(3)
+
+        for folder in os.listdir(data_folder): #Calculate mean in first pass
+            assert folder in cond_IDs, 'ERROR - A folder not matching given experimental condtions found in given directory. Aborting.'
+
+            for file in os.listdir(os.path.join(data_folder,folder)):
+
+                if not file.endswith('.tif') or file.endswith('.tiff'):
+                    continue
+
+                impath = os.path.join(data_folder,folder,file)
+
+                image = skimage.io.imread(impath)
+
+                (x,y,z) = image.shape
+
+                pix_count = x*y #Total pixels in image
+
+                for channel in range(z):
+                    image_ch = image[:,:,channel]
+                    ch_sum = image_ch.sum()
+                    intensity_total[channel] = intensity_total[channel] + ch_sum #Sum total intensity per channel
+                    pix_total[channel] = pix_total[channel] + x*y #Sum total pixels
+
+                    if image_ch.min() < pix_min[channel]:
+                        pix_min[channel] = image_ch.min()
+
+                    if image_ch.max() > pix_max[channel]:
+                        pix_max[channel] = image_ch.max()
+
+            return intensity_total, pix_total, pix_min, pix_max
+
+    intensity_total, pix_total, pix_min, pix_max = _CalculateStats(data_folder) #Calculate statistics across dataset
+
+    #Now process all images
+    average_pix = numpy.divide(intensity_total,pix_total) #Average pixel
+    pix_min = pix_min - average_pix  # Min-Max values need updating too
+    pix_max = pix_max - average_pix
+
+    #Now process all images
+    image_count = 0
+    for folder in os.listdir(data_folder): #Subtract mean in second pass
         for file in os.listdir(os.path.join(data_folder,folder)):
-            impath = os.path.join(data_folder,folder,file)
+            if not file.endswith('.tif') or file.endswith('.tiff'):
+                continue
 
-            image = skimage.io.imread(impath)
-
-            channel_count = len(channels)
-            assert image.shape == (_,_,channel_count), 'ERROR '
-
+            impath = os.path.join(data_folder, folder, file)
+            image = skimage.io.imread(impath) #Read image
 
 
+            #Rescale to (a,b) = (-1,1)
+            a = -1
+            b = 1
+
+            with numpy.errstate(divide='ignore'):
+                #image = a + numpy.divide(((image-pix_min)*(b-a)), (pix_max - pix_min))  # Rescale to [-1,1]
+                image = numpy.divide((image - average_pix), (pix_max-pix_min))
+                image[~ numpy.isfinite(image)] = 0  # -inf inf NaN
 
 
 
+            skimage.io.imsave(impath,image,check_contrast=False)
+            image_count = image_count + 1
 
+    print('Average pixel', str(average_pix), 'subtracted from', str(image_count), 'images')
 
+    #Verify that data has been processed correctly
 
+    intensity_total, pix_total, pix_min, pix_max = _CalculateStats(data_folder)  # Calculate statistics across dataset
+    average_pix = intensity_total/pix_total
+    tolerance = numpy.asarray([1e-4, 1e-4, 1e-4])**2
+
+    assert all(average_pix<=tolerance) #Assert average is 0
 
 
 
@@ -176,10 +250,13 @@ def SortNIM(data_folder,**kwargs):
     
     if not all([data_folder,img_dims,cond_IDs]): #Verify input
         raise TypeError
-    
+
     assert len(img_dims) == 3, 'img_dims must have exactly 3 values'
-    assert cond_IDs 
-    
+    assert cond_IDs
+
+    image_channels = list(set(image_channels)) #Extract unique channels
+
+
     
     import os,skimage.io, warnings,numpy
 
@@ -248,7 +325,7 @@ def CollectNIM(data_folder,**kwargs):
     
     if not all([data_folder,cond_IDs, image_channels]): #Verify input
         raise TypeError
-        
+
     import os, numpy, skimage.io, sys, re
     from tqdm import tqdm
     
@@ -335,12 +412,9 @@ def CollectNIM(data_folder,**kwargs):
     #At the end, print a summary 
             
     sys.stdout.flush()
-    print('\n')
     print('')
-    print('-------------------------------------------')
     for count,elem in enumerate(success_counter_store):
         print(cond_IDs[count], ' : ' ,elem, '/', total_store[count], ' matched successfully' )
-    print('-------------------------------------------')
     sys.stdout.flush()
     
     
