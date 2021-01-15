@@ -216,7 +216,7 @@ if __name__ == '__main__':
     LR = 0.003
     BS = 2
 
-    config.NAME = ''.join(['trial1_equalized_channels_dataset1', 'LR=', str(LR), '_BS=', str(BS), '_T='])
+    config.NAME = ''.join(['discard', 'LR=', str(LR), '_BS=', str(BS), '_T='])
     config.LEARNING_RATE = LR
     config.IMAGES_PER_GPU = BS
     config.BATCH_SIZE = BS #This needs to be manually updated here because its first computer by init

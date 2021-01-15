@@ -8,6 +8,7 @@ Created on Sun Apr 26 17:17:56 2020
 from helpers import *
 from implementations import *
 from mask_generators import *
+from segmentation import *
 
 import sys
 
@@ -55,6 +56,9 @@ class ProcessingPipeline:
         self._Factory.register_implementation(('fileoperation', 'masks_from_VOTT'), masks_from_VOTT)
         self._Factory.register_implementation(('fileoperation', 'masks_from_OUFTI'), masks_from_OUFTI)
         self._Factory.register_implementation(('fileoperation', 'Equalize_Channels'), Equalize_Channels)
+
+        self._Factory.register_implementation(('fileoperation', 'train_mrcnn_segmenter'), train_mrcnn_segmenter)
+        self._Factory.register_implementation(('fileoperation', 'predict_mrcnn_segmenter'), predict_mrcnn_segmenter)
 
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
         self._Factory.register_implementation(('operation', 'Imadjust'), Imadjust)
@@ -135,16 +139,20 @@ if __name__ == '__main__':
 
     pipeline.FileOp('masks_from_OUFTI', mask_path = input_path, output_path = output_path, image_size = (684,420))
 
-    #--- EQUALIZE CHANNELS---
-
-    #pipeline.FileOp('Equalize_Channels', data_folder = pipeline.path, cond_IDs = cond_IDs, image_channels = image_channels)
-
     #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS---
     annots = os.path.join(input_path, 'annots')
     files = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
     output = os.path.join(get_parent_path(1),'Data', 'Dataset1_05_12_20')
 
     pipeline.FileOp('TrainTestVal_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.7,0.2,0.1), seed = 40 )
+
+    #---TRAIN 1ST STAGE MODEL---
+
+    weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
+    train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Train')
+    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Validation')
+
+
 
 
     
