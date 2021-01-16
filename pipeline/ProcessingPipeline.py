@@ -48,6 +48,9 @@ class ProcessingPipeline:
         self.sorted = False
         self.collected = False
 
+        self.segmenter = None
+
+
         #Use a 2 tuple as a key.
         self._Factory.register_implementation(('sorter','NIM'), SortNIM)
         self._Factory.register_implementation(('collector','NIM'), CollectNIM)
@@ -56,9 +59,6 @@ class ProcessingPipeline:
         self._Factory.register_implementation(('fileoperation', 'masks_from_VOTT'), masks_from_VOTT)
         self._Factory.register_implementation(('fileoperation', 'masks_from_OUFTI'), masks_from_OUFTI)
         self._Factory.register_implementation(('fileoperation', 'Equalize_Channels'), Equalize_Channels)
-
-        self._Factory.register_implementation(('fileoperation', 'train_mrcnn_segmenter'), train_mrcnn_segmenter)
-        self._Factory.register_implementation(('fileoperation', 'predict_mrcnn_segmenter'), predict_mrcnn_segmenter)
 
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
         self._Factory.register_implementation(('operation', 'Imadjust'), Imadjust)
@@ -114,7 +114,7 @@ class ProcessingPipeline:
 
         self.opchain.append(str(operation))
 
-            
+
     
     
 if __name__ == '__main__':
@@ -133,24 +133,40 @@ if __name__ == '__main__':
 
     #--- GENERATE MASKS FROM SEGMENTATION FILE---
 
-    input_path = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined',
-                              'WT+ETOH', 'Segmentations')
-    output_path = input_path #Write in same directory
+    input_path_WT = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'RIF+ETOH')
 
-    pipeline.FileOp('masks_from_OUFTI', mask_path = input_path, output_path = output_path, image_size = (684,420))
+    pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size = (684,420))
+    pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path= input_path_CIP, image_size=(684, 420))
+    pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path= input_path_RIF, image_size=(684, 420))
 
-    #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS---
-    annots = os.path.join(input_path, 'annots')
-    files = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
-    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_05_12_20')
+    #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
+    annots_WT = os.path.join(input_path_WT, 'annots')
+    files_WT = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
 
-    pipeline.FileOp('TrainTestVal_split', data_folder = files, annotation_folder = annots, output_folder = output, proportions = (0.7,0.2,0.1), seed = 40 )
+    annots_CIP = os.path.join(input_path_CIP, 'annots')
+    files_CIP = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined', 'CIP+ETOH')
+
+    annots_RIF = os.path.join(input_path_RIF, 'annots')
+    files_RIF = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined','RIF+ETOH')
+
+    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_15_01_2021')
+
+    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output, proportions = (0.7,0.2,0.1), seed = 40 )
 
     #---TRAIN 1ST STAGE MODEL---
 
     weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
-    train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Train')
-    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_05_12_20', 'Validation')
+    train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Train')
+    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Validation')
+    output_dir = get_parent_path(1)
+
+
+    configuration = BacConfig()
+
+    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, weights = weights_start, output_folder = output_dir)
+
 
 
 

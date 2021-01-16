@@ -12,6 +12,17 @@ from mrcnn import utils
 from mrcnn import model as modellib
 from mrcnn import visualize
 
+from helpers import *
+
+# Import all the necessary libraries
+import os
+import sys
+import skimage.io  # Used for imshow function
+import skimage.transform  # Used for resize function
+import numpy as np
+import keras
+import tensorflow as tf
+import sklearn
 
 #-------------------------------------------MODEL CONFIGURATION CLASS---------------------------------------------------
 class BacConfig(config.Config):
@@ -19,13 +30,12 @@ class BacConfig(config.Config):
 
     NAME = 'BAC'
 
+    LEARNING_RATE = 0.03
+    IMAGES_PER_GPU = 2
+
     NUM_CLASSES = 1 + 1  # BG and Cell
 
     STEPS_PER_EPOCH = 100  # This is calculated later
-
-    IMAGES_PER_GPU = 2  # This is calculated later
-
-    VALIDATION_STEPS = 2  # Change this once more data arrives
 
     MEAN_PIXEL = np.array([0, 0, 0])
 
@@ -59,7 +69,19 @@ class BacConfig(config.Config):
 #----------------------------------------------MODEL DATASET CLASS------------------------------------------------------
 class BacDataset(utils.Dataset):
 
-    def load_dataset(self, dataset_dir):
+    def load_dataset(self, dataset_dir, class_scheme):
+
+        '''
+        Loads requisite data and annotations in standard format from rest of pipeline.
+        Class scheme supports easy and arbitrary distribution of data sources between classes.
+
+        :param dataset_dir (list of strings) - list of data sources. Data sou
+        :param class_scheme:
+        :return:
+        '''
+
+        #Check that dataset_dir and class_scheme are both lists
+
 
         import re
 
@@ -114,26 +136,14 @@ class BacDataset(utils.Dataset):
 
 def train_mrcnn_segmenter(**kwargs):
 
-    train_folder = kwargs.get('data_folder', False)
-    validation_folder = kwargs.get('annotation_folder', False)
+    train_folder = kwargs.get('train_folder', False)
+    validation_folder = kwargs.get('validation_folder', False)
     config = kwargs.get('configuration', False)
+    weights = kwargs.get('weights', False)
     output_folder = kwargs.get('output_folder', False)
 
-    if not all([data_folder, annotation_folder, output_folder]):  # Verify input
+    if not all([train_folder, validation_folder, config, weights, output_folder]):  # Verify input
         raise TypeError
-
-    # Import all the necessary libraries
-    import os
-    import sys
-    import skimage.io  # Used for imshow function
-    import skimage.transform  # Used for resize function
-    import numpy as np
-    import keras
-    import tensorflow as tf
-    import sklearn
-
-
-    from pipeline.helpers import *
 
     print('Python       :', sys.version.split('\n')[0])
     print('Numpy        :', np.__version__)
@@ -164,8 +174,6 @@ def train_mrcnn_segmenter(**kwargs):
     print('Weights: ' + WEIGHTSDIR)
     print('--------------------------------------------')
 
-    config = BacConfig()  # model configuration file
-
     # Define augmentation scheme
 
     seq = [
@@ -187,20 +195,13 @@ def train_mrcnn_segmenter(**kwargs):
     warnings.filterwarnings('ignore', '', iaa.base.SuspiciousSingleImageShapeWarning, '',
                             0)  # Filter warnings from imgaug
 
-    LR = 0.003
-    BS = 2
-
-    config.NAME = ''.join(['trial1_equalized_channels_dataset1', 'LR=', str(LR), '_BS=', str(BS), '_T='])
-    config.LEARNING_RATE = LR
-    config.IMAGES_PER_GPU = BS
-    config.BATCH_SIZE = BS  # This needs to be manually updated here because its first computer by init
-
     config.STEPS_PER_EPOCH = int(np.round(len(train_set.image_ids) / BS))  # Set 1 epoch = 1 whole pass
+    config.VALIDATION_STEPS = int(np.round(len(val_set.image_ids) / BS)) # Iterate through entire validation set
 
     config.display()
 
     with tf.device(DEVICE):
-        trmodel = modellib.MaskRCNN(mode='training', model_dir='./', config=config)
+        trmodel = modellib.MaskRCNN(mode='training', model_dir=output_folder, config=config)
         trmodel.load_weights(WEIGHTSDIR, by_name=True,
                              exclude=['mrcnn_class_logits', 'mrcnn_bbox_fc', 'mrcnn_bbox', 'mrcnn_mask'])
 
