@@ -335,7 +335,7 @@ def CollectNIM(data_folder,**kwargs):
     if not all([data_folder,cond_IDs, image_channels]): #Verify input
         raise TypeError
 
-    import os, numpy, skimage.io, sys, re
+    import os, numpy, skimage.io, sys
     from tqdm import tqdm
     
     output_folder = os.path.join(data_folder,'Combined')
@@ -454,7 +454,7 @@ def BatchProcessor(data_folder,operation, op, **kwargs):
     None.
 
     '''
-    import skimage.io, os
+    import os
     from tqdm import tqdm
     
     import multiprocessing

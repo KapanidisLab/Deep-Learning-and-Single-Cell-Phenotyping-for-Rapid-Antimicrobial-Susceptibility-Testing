@@ -43,7 +43,7 @@ class Test_helpers:
     #TODO add testing for (dir and file) counter, generate dummy directory tree for them to traverse.
 
     def test_interspread(self):
-        from helpers import interspread
+        from pipeline.helpers import interspread
 
         string = ['Nice','To','Meet','You']
         separator = '_'
@@ -52,7 +52,7 @@ class Test_helpers:
         assert interspread(string,separator) == target
 
     def test_makedir(self):
-        from helpers import makedir
+        from pipeline.helpers import makedir
         import os
         dir = "./dummydir"
 
@@ -64,7 +64,7 @@ class Test_helpers:
             os.rmdir(dir) #rmdir removes empty dirs only, so is safe
 
     def test_im_2_uint16(self):
-        from helpers import im_2_uint16
+        from pipeline.helpers import im_2_uint16
         import numpy
 
         # 1 test cases, uint8 images, maybe add more.

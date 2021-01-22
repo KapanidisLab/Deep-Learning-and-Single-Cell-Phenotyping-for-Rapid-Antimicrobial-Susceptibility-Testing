@@ -21,7 +21,7 @@ from matplotlib.patches import Polygon
 import IPython.display
 
 # Root directory of the project
-ROOT_DIR = os.path.abspath("../")
+ROOT_DIR = os.path.abspath("../../mrcnn/")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
@@ -136,15 +136,15 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             ax.add_patch(p)
 
         # Label
-        if not captions:
-            class_id = class_ids[i]
-            score = scores[i] if scores is not None else None
-            label = class_names[class_id]
-            caption = "{} {:.3f}".format(label, score) if score else label
-        else:
-            caption = captions[i]
-        ax.text(x1, y1 + 8, caption,    #EDIT - Comment out captions
-                color='w', size=11, backgroundcolor="none")
+        #if not captions:
+        #    class_id = class_ids[i]
+        #    score = scores[i] if scores is not None else None
+        #    label = class_names[class_id]
+        #    caption = "{} {:.3f}".format(label, score) if score else label
+        #else:
+        #    caption = captions[i]
+        #ax.text(x1, y1 + 8, caption,    #EDIT - Comment out captions
+        #        color='w', size=11, backgroundcolor="none")
 
         # Mask
         mask = masks[:, :, i]

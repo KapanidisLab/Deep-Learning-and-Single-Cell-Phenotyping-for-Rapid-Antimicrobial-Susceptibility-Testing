@@ -6,12 +6,11 @@ Created on Fri Oct 23 16:50:28 2020
 """
 
 from helpers import *
-import os
 from tqdm import tqdm
 
 def masks_from_VOTT(**kwargs):
 
-    import json, numpy, skimage,skimage.io,skimage.draw, sys
+    import json, numpy, skimage.io,skimage.draw, sys
 
     '''
     Locates the VOTT json file in the mask folder and generates single cell masks in the output folder, in the structure
@@ -125,7 +124,7 @@ def masks_from_OUFTI(**kwargs):
 
     if not all([mask_path, output_path]):  # Verify input
         raise TypeError
-    import scipy.io, skimage.io, skimage.draw, os, numpy, sys
+    import scipy.io, skimage.draw, os, numpy, sys
     from PIL import Image
 
     makedir(os.path.join(output_path, 'annots'))  # Create folder with masks
@@ -170,6 +169,12 @@ def masks_from_OUFTI(**kwargs):
 
                     x=mesh[:,0]
                     y=mesh[:,1]
+
+                    #21_01_2021 edit - subtract (1,1) from each vertex to account for difference in indexing between python and matlab
+
+                    x = x-1
+                    y = y-1
+
                     mesh_tran[:,0] = y #Swap columns to match polygon2mask
                     mesh_tran[:,1] = x
 

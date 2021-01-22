@@ -10,7 +10,7 @@ from implementations import *
 from mask_generators import *
 from segmentation import *
 
-import sys
+import numpy as np
 
 #sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline") #Append paths such that sub-processes can find functions
 #sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline\helpers.py")
@@ -162,12 +162,46 @@ if __name__ == '__main__':
     val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Validation')
     output_dir = get_parent_path(1)
 
-
     configuration = BacConfig()
+    configuration.NAME = 'Jan21_01_21_v1.0_decreased_anx'
 
-    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, weights = weights_start, output_folder = output_dir)
+    import imgaug.augmenters as iaa  # import augmentation library
+
+    augmentation = [
+        iaa.Fliplr(0.5),  # Flip LR with 50% probability
+        iaa.Flipud(0.5),  # Flip UD 50% prob
+        iaa.Sometimes(0.5, iaa.Affine(rotate=(-45, 45))),  # Rotate up to 45 deg either way, 50% prob
+        iaa.Sometimes(0.5, iaa.Affine(translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)})),
+        # Translate up to 20% on either axis independently, 50% prob
+        iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0, 2.0))),  # Gaussian convolve 50% prob
+        # iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.05 * 65535))),  # up to 5% PSNR 50% prob
+        iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=0))
+    ]
+
+    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+
+    #--- INSPECT 1st STAGE MODEL---
+
+    test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Test')
+    weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
+
+    ids = None
+
+    #optimise_mrcnn_segmenter('training', ['LEARNING_RATE', 'IMAGES_PER_GPU'], [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
+    #optimise_mrcnn_segmenter('inference',['DETECTION_NMS_THRESHOLD' ], [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
 
 
+
+    inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
+
+    #--- INSPECT TRAIN DATASET AND AUGMENTATION---
+
+    #inspect_dataset(dataset_folder = train_dir)
+    #inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
+
+    #--- INSPECT 1st STAGE STEPWISE
+
+    #inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
 
 
 
