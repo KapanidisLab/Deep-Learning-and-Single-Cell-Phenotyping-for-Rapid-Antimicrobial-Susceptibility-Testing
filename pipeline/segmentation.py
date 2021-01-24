@@ -231,6 +231,85 @@ def train_mrcnn_segmenter(**kwargs):
         trmodel.train(train_set, val_set, learning_rate=configuration.LEARNING_RATE / 10, epochs=200, layers='all',
                       augmentation=augmentation)
 
+def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
+
+    #Use this when no corresponding gt labels are provided
+
+    config = kwargs.get('config', False)
+    weights = kwargs.get('weights', False)
+
+    if not all([config, weights]):  # Verify input
+        raise TypeError
+
+    assert mode in ['images', 'dataset'], 'Predictions either from dataset object or raw images'
+
+    if mode == 'dataset':
+
+        assert os.path.isdir(source), 'In dataset mode, the image source must be a path to test directory.'
+
+        test_set = BacDataset()
+        test_set.load_dataset(source)
+        test_set.prepare()
+
+        image_count = len(test_set.image_ids)
+
+    elif mode == 'images':
+
+        assert isinstance(source, np.ndarray),' In images mode, the image source must be an ndarray.'
+        assert source.shape == (_,_,_,3), 'Images must be RGB'
+        (N,x,y,ch) = source.shape #Get source info
+        image_count = N
+
+    output = []
+
+    configuration = copy.deepcopy(config)  # Local copy of config to avoid modifying in outer scope
+
+    #TODO The model.detect() can process in larger batch sizes. Consider refactoring for increased speed.
+
+    configuration.IMAGES_PER_GPU = 1
+    configuration.IMAGE_RESIZE_MODE = 'pad64' #Pad to multiples of 64
+    configuration.__init__()
+
+    DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0 #Select device to execute on
+
+    with tf.device(DEVICE):
+        model = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
+        model.load_weights(weights, by_name=True)
+
+        for i in range(image_count):
+
+            if mode == 'dataset':
+                image_id = test_set.image_ids[i]
+                image = test_set.load_image(image_id)
+
+                assert test_set.image_info[i]['id'] == image_id #Ensure we got the correct image
+                filename = os.path.split(test_set.image_info[i]['path'])[1] #Get filename
+                filename = filename.split('.')[0] #Remove fie extension
+
+
+            elif mode == 'images':
+                image = source[i,:,:,:]
+
+                filename = kwargs.get('filename', None) #Optional parameter if in images mode
+
+
+            results = model.detect(np.expand_dims(image, 0), verbose=0)[0] #Run detection routine
+
+            results['image'] = image #Add field with the raw image
+            results['filename'] = filename #Store filename, or none
+
+            output.append(results) #Store
+
+    return output
+
+#def generate_cells_dataset(input=None, cond_IDs):
+
+    #Expects a results list as prepared by predict_mrcnn_segmenter
+
+    #for image_result in input:
+
+
+
 def inspect_mrcnn_segmenter(ids = None, **kwargs):
 
     #ids - list or int, select specific image ids for inspection. If None, loop through entire dataset
@@ -307,18 +386,13 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
             log('Masks', r['masks'])
 
             # Compute AP over range 0.5 to 0.95 and print it
-            utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
+            AP = utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
                                    r['rois'], r['class_ids'], r['scores'], r['masks'],
                                    verbose=1)
 
-            # Compute mAP
-            print('')
-            mAP = compute_batch_ap(test_set, [image_id], configuration, model)
-            print('')
-
             image_ubyte = skimage.img_as_ubyte(image)  # Convert to 8bit
 
-            title = configuration.NAME + str('_IMAGE_ID_')+str(image_id)+str('_mAP_')+str(np.around(mAP,2))
+            title = configuration.NAME + str('_IMAGE_ID_')+str(image_id)+str('_AP_')+str(np.around(AP,2))
 
             visualize.display_differences(
                 image_ubyte,
@@ -329,12 +403,12 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
                 iou_threshold=0, score_threshold=0, ax=get_ax(), title = title)
             plt.show()
 
-            # Compute mAP
-            print('')
-            APs = compute_batch_ap(test_set, [image_id], configuration, model)
-            print('')
-
             compute_pixel_metrics(test_set, [image_id], model)  # Compute pixel confusion mats
+
+def calculate_dataset_mAP(dataset_folder = None):
+    assert os.path.isdir(source), 'Dataset_folder must be a path to dataset directory.
+
+
 
 
 def inspect_dataset(**kwargs):
@@ -824,7 +898,7 @@ def inspect_segmenter_stepwise(**kwargs):
 
         print('ALL DONE!')
 
-def optimise_mrcnn_segmenter(mode, arg_names, arg_values, **kwargs):
+def optimise_mrcnn_segmenter(mode = None, arg_names = None, arg_values = None, **kwargs):
 
     #Optimise parameters and train for each permutation
     # arg_names - list of strings, where each entry corresponds to a parameter to optimise

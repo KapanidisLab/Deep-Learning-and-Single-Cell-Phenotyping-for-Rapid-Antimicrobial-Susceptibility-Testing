@@ -163,7 +163,7 @@ if __name__ == '__main__':
     output_dir = get_parent_path(1)
 
     configuration = BacConfig()
-    configuration.NAME = 'Jan21_01_21_v1.0_decreased_anx'
+    configuration.NAME = 'Jan22_01_21_v1.0_no_crop_anx'
 
     import imgaug.augmenters as iaa  # import augmentation library
 
@@ -187,13 +187,12 @@ if __name__ == '__main__':
 
     ids = None
 
-    #optimise_mrcnn_segmenter('training', ['LEARNING_RATE', 'IMAGES_PER_GPU'], [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
-    #optimise_mrcnn_segmenter('inference',['DETECTION_NMS_THRESHOLD' ], [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
-
-
-
+    #optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
+    #optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
     inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
 
+    #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    #print('eh')
     #--- INSPECT TRAIN DATASET AND AUGMENTATION---
 
     #inspect_dataset(dataset_folder = train_dir)
