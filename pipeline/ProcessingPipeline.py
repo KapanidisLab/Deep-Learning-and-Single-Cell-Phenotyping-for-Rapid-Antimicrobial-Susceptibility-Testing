@@ -189,10 +189,10 @@ if __name__ == '__main__':
 
     #optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
     #optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
-    inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
+    #inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
 
     #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
-    #print('eh')
+    print('eh')
     #--- INSPECT TRAIN DATASET AND AUGMENTATION---
 
     #inspect_dataset(dataset_folder = train_dir)
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     #--- INSPECT 1st STAGE STEPWISE
 
-    #inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
+    inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
 
 
 

@@ -180,6 +180,9 @@ def masks_from_OUFTI(**kwargs):
 
                     mask = skimage.draw.polygon2mask(image_size, mesh_tran)
 
+                    if mask.max() == 0: #if no mask was written, skip
+                        continue
+
                     filename = 'Cell' + str(cellcount) + '.bmp'  # Mask filename
                     savepath = os.path.join(output_path, 'annots', img_filename, filename)  # Assemble whole save path
 

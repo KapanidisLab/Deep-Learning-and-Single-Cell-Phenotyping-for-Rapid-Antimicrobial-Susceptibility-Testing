@@ -245,11 +245,15 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
     if mode == 'dataset':
 
-        assert os.path.isdir(source), 'In dataset mode, the image source must be a path to test directory.'
+        if type(source) == 'str':
+            assert os.path.isdir(source), 'In dataset mode, the image source must be a path to test directory or dataset object.'
+            test_set = BacDataset()
+            test_set.load_dataset(source)
+            test_set.prepare()
 
-        test_set = BacDataset()
-        test_set.load_dataset(source)
-        test_set.prepare()
+        else:
+            assert isinstance(source,BacDataset), 'In dataset mode, the image source must be a path to test directory or dataset object.'
+            test_set = source
 
         image_count = len(test_set.image_ids)
 
@@ -288,6 +292,7 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
 
             elif mode == 'images':
+                image_id = None
                 image = source[i,:,:,:]
 
                 filename = kwargs.get('filename', None) #Optional parameter if in images mode
@@ -297,6 +302,8 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
             results['image'] = image #Add field with the raw image
             results['filename'] = filename #Store filename, or none
+            results['image_id'] = image_id #Store id, if given
+
 
             output.append(results) #Store
 
@@ -385,10 +392,14 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
             log('Scores', r['scores'])
             log('Masks', r['masks'])
 
-            # Compute AP over range 0.5 to 0.95 and print it
-            AP = utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
+            mAPs = []
+
+            # Compute mAP over range 0.5 to 0.95 and print it, for this image
+            mAP = utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
                                    r['rois'], r['class_ids'], r['scores'], r['masks'],
                                    verbose=1)
+
+            mAPs.append(mAP) #Store mAP from that image
 
             image_ubyte = skimage.img_as_ubyte(image)  # Convert to 8bit
 
@@ -405,8 +416,10 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
 
             compute_pixel_metrics(test_set, [image_id], model)  # Compute pixel confusion mats
 
+        print('AP:0.5-0.9 per image average: ' + str( np.around(mAPs,2)))
+
 def calculate_dataset_mAP(dataset_folder = None):
-    assert os.path.isdir(source), 'Dataset_folder must be a path to dataset directory.
+    assert os.path.isdir(source), 'Dataset_folder must be a path to dataset directory.'
 
 
 
@@ -960,6 +973,137 @@ def optimise_mrcnn_segmenter(mode = None, arg_names = None, arg_values = None, *
 
         else:
             raise TypeError
+
+def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_type="bbox", plot=True):
+    #Runs official coco metrics calculator. Requires coco.py with alternative data loader to work with dataset object
+
+    assert dataset_folder != None and config != None and weights != None
+
+    from pycocotools.coco import COCO
+    from pycocotools.cocoeval import COCOeval
+    from pycocotools import mask as maskUtils
+
+    def build_coco_results(image_id, rois, class_ids, scores, masks):
+
+        # If no results, return an empty list
+        if rois is None:
+            return []
+
+        results = []
+
+        # Loop through detections
+        for i in range(rois.shape[0]):
+            class_id = class_ids[i]
+            score = scores[i]
+            bbox = np.around(rois[i], 1)
+            mask = masks[:, :, i]
+
+            result = {
+                "image_id": image_id,
+                "category_id": class_id,
+                "bbox": [bbox[1], bbox[0], bbox[3] - bbox[1], bbox[2] - bbox[0]],
+                "score": score,
+                "segmentation": maskUtils.encode(np.asfortranarray(mask))
+            }
+            results.append(result)
+        return results
+
+    dataset = BacDataset()
+    dataset.load_dataset(dataset_folder)
+    dataset.prepare()
+
+    configuration = copy.deepcopy(config)
+    configuration.DETECTION_MIN_CONFIDENCE = 0  # Set no artificial confidence threshold.
+
+    COCOgt = COCO(dataset)
+
+    results = predict_mrcnn_segmenter(source=dataset, mode='dataset', config=configuration, weights=weights)
+
+    coco_results = []
+    for result in results:
+        image_results = build_coco_results(result["image_id"],
+                                           result["rois"], result["class_ids"],
+                                           result["scores"],
+                                           result["masks"].astype(np.uint8))
+        coco_results.extend(image_results)
+    COCOres = COCOgt.loadRes(coco_results)  # Create COCO object from our transformed results
+
+    # Call evaluation
+    cocoEval = COCOeval(COCOgt, COCOres, eval_type)
+    cocoEval.params.imgIds = dataset.image_ids  # Feed all image ids for evaluation
+    cocoEval.params.maxDets = [10, 100, 1000]  # Increase max det thresholds to match dataset
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize()
+
+    # Plot PR curves if asked
+
+    # Plot over all areas, average across categories
+    if plot:
+        # Find IoU0.5 and IoU0.75 and IoU0.9 parameter index
+        iouThresholds = cocoEval.eval['params'].iouThrs
+        id50 = np.where((np.around(iouThresholds, 1) == 0.5))[0][
+            0]  # Round to 1 dp to elimiate machine precision comparison problems
+        id75 = np.where((np.around(iouThresholds, 2) == 0.75))[0][0]
+        id90 = np.where((np.around(iouThresholds, 1) == 0.9))[0][0]
+
+        # Get recall therholds
+        recThresholds = cocoEval.eval['params'].recThrs
+
+        # TODO Rewrite these using a single index with 3 values
+
+        # Get precisions at IoUs from index
+        precisions = cocoEval.eval['precision']
+
+        pr_50 = precisions[id50, :, :, 0, 2]  # data for IoU@0.5, all areas and max detections, all categories
+        pr_75 = precisions[id75, :, :, 0, 2]  # data for IoU@0.75
+        pr_90 = precisions[id90, :, :, 0, 2]  # data for IoU@0.90
+
+        pr_50 = np.mean(pr_50, 1)  # Average all over categories
+        pr_75 = np.mean(pr_75, 1)
+        pr_90 = np.mean(pr_90, 1)
+
+        # Get confidence threshold scores corresponding
+        scores = cocoEval.eval['scores']
+
+        scr_50 = scores[id50, :, :, 0, 2]
+        scr_75 = scores[id75, :, :, 0, 2]
+        scr_90 = scores[id90, :, :, 0, 2]
+
+        scr_50 = np.mean(scr_50, 1)  # Average all over categories
+        scr_75 = np.mean(scr_75, 1)
+        scr_90 = np.mean(scr_90, 1)
+
+        # Plot
+
+        fig, axs = plt.subplots(2, 1)
+        fig.suptitle('Precision-Recall curve: COCO 2017 standard', y=1.05)
+        fig.tight_layout()
+        fig.subplots_adjust(top=0.65)
+
+        axs[0].set_title('Precision-Recall: IOU@0.5, 0.75, 0.9')
+        axs[0].plot(recThresholds, pr_50, color='blue')
+        axs[0].plot(recThresholds, pr_75, color='green')
+        axs[0].plot(recThresholds, pr_90, color='red')
+        axs[0].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.9'])
+        axs[0].xaxis.set_label_text('Recall')
+        axs[0].yaxis.set_label_text('Precision')
+
+        axs[1].set_title('Confidence at Recall thresholds: IOU@0.5, 0.75, 0.9')
+        axs[1].plot(recThresholds, scr_50, color='blue')
+        axs[1].plot(recThresholds, scr_75, color='green')
+        axs[1].plot(recThresholds, scr_90, color='red')
+        axs[1].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.9'])
+        axs[1].xaxis.set_label_text('Recall')
+        axs[1].yaxis.set_label_text('Confidence threshold')
+
+        print('Preparing graphs...')
+        plt.show()
+        print('Graphs done!')
+
+
+
+
 
 
 
