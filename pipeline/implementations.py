@@ -231,7 +231,7 @@ def Equalize_Channels(**kwargs):
 
 
 
-def SortNIM(data_folder,**kwargs):
+def SortNIM(data_folder, output_folder = None, **kwargs):
     
     '''
     Sorts through NIM default file structure and sorts files into subfolders based on condtion type.
@@ -269,7 +269,11 @@ def SortNIM(data_folder,**kwargs):
     
     import os,skimage.io, warnings,numpy
 
-    output_folder = os.path.join(data_folder,'Segregated')
+    if output_folder is None: #Default output path if none provided
+        output_folder = os.path.join(data_folder,'Segregated')
+    else:
+        assert type(output_folder) == str
+
     
     (sx,sy,sz) = img_dims
 
@@ -327,7 +331,7 @@ def SortNIM(data_folder,**kwargs):
     return output_folder
                         
 
-def CollectNIM(data_folder,**kwargs):
+def CollectNIM(data_folder, output_folder = None, **kwargs):
     
     cond_IDs = kwargs.get('cond_IDs', False)
     image_channels = kwargs.get('image_channels', False)
@@ -337,8 +341,13 @@ def CollectNIM(data_folder,**kwargs):
 
     import os, numpy, skimage.io, sys
     from tqdm import tqdm
-    
-    output_folder = os.path.join(data_folder,'Combined')
+
+    if output_folder is None:
+        output_folder = os.path.join(data_folder,'Combined')
+    else:
+        assert type(output_folder) == str
+
+
     makedir(output_folder)
 
     success_counter_store = []

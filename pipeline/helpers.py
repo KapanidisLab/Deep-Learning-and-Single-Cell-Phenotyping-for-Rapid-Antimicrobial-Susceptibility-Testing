@@ -11,9 +11,11 @@ from mrcnn import config
 from mrcnn import utils
 from mrcnn import model as modellib
 from mrcnn import visualize as visualize
+import os
 
 import numpy as np
 import sklearn.metrics
+import skimage.io
 
 def dircounter(folder):
     '''
@@ -286,3 +288,25 @@ def image_stats(image_id, dataset):
         "color": np.mean(image, axis=(0, 1)),
     }
 
+def fetch_image(image_dir, filename):
+
+    matched_image = False
+
+    for root, dirs, files in os.walk(image_dir):
+        for file in files:
+            if file == filename:
+                if not matched_image: #If more than one match throw error
+
+                    matched_image = True
+
+                    if dirs != []:
+                        path = os.path.join(root, dirs, file)
+                    else:
+                        path = os.path.join(root, file)
+
+                    image = skimage.io.imread(path)
+
+                else:
+                    raise TypeError('More than one image matching filename found')
+
+    return image

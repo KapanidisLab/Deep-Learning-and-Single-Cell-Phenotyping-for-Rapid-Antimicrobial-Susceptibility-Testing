@@ -245,14 +245,14 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
     if mode == 'dataset':
 
-        if type(source) == 'str':
+        if type(source) == str:
             assert os.path.isdir(source), 'In dataset mode, the image source must be a path to test directory or dataset object.'
             test_set = BacDataset()
             test_set.load_dataset(source)
             test_set.prepare()
 
         else:
-            assert isinstance(source,BacDataset), 'In dataset mode, the image source must be a path to test directory or dataset object.'
+            assert isinstance(source, BacDataset), 'In dataset mode, the image source must be a path to test directory or dataset object.'
             test_set = source
 
         image_count = len(test_set.image_ids)
@@ -288,7 +288,6 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
                 assert test_set.image_info[i]['id'] == image_id #Ensure we got the correct image
                 filename = os.path.split(test_set.image_info[i]['path'])[1] #Get filename
-                filename = filename.split('.')[0] #Remove fie extension
 
 
             elif mode == 'images':
@@ -309,11 +308,113 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
     return output
 
-#def generate_cells_dataset(input=None, cond_IDs):
+def generate_cells_dataset(input=None, cond_IDs=None, image_dir=None, mode='masks'):
 
-    #Expects a results list as prepared by predict_mrcnn_segmenter
+    #Expects a results list as prepared by predict_mrcnn_segmenter.
+    # cond_IDs = list of strings with condition identifiers
+    # image_dir = path to images prepared with Collect() and Sort()
 
-    #for image_result in input:
+    import re, fnmatch, skimage.io, skimage.draw
+
+    output = {'class_id_to_name' : [] }
+
+    for i, cond_ID in enumerate(cond_IDs): #Create output struct, populate with condition ids
+        output[cond_ID] = []
+        mapping = {'class_id' : i,
+                   'name' : cond_ID}
+        output['class_id_to_name'].append(mapping)
+
+
+    for image_result in input:
+
+        #Get condition ID from image result, try to match to supplied identifiers
+        filename = image_result['filename']
+        matched_condID = False
+
+        for cond_ID in cond_IDs:
+
+            pattern = cond_ID #Assemble pattern
+            pattern = re.escape(pattern) #Auto escape any metacharacters inside cond_ID
+            pattern = re.compile(pattern) #Compile
+
+            #If matched, get image from supplied image_dir
+            if pattern.search(filename) is not None:
+                if not matched_condID:
+
+                    matched_condID = True
+                    image = fetch_image(image_dir, filename) #fetch image() from helpers file
+                    assert len(image.shape) == 2 or len(image.shape) == 3, 'Images must be either monochrome or RGB'
+
+                    if len(image.shape) == 2: #Add channel axis for monochrome images
+                        image = np.expand_dims(image,-1)
+
+                else:
+                    raise TypeError('More than one cond_ID matched to image.')
+
+        if matched_condID is not True:
+            raise RuntimeError('Image not matched to any supplied condition ID. Check input.')
+
+        #Get instance masks. Use either segmentation masks of bounding boxes
+
+
+        if mode =='masks':
+            ROIs = image_result['masks']  #In mask mode, use masks directly to mask out image segments
+            bboxes = image_result['rois'] #get bounding boxes to extract masked segments
+
+        elif mode =='bbox': #In bbox mode, use bboxes instead to mask segments
+
+            bboxes = image_result['rois']
+            bbox_count = bboxes.shape()[0]
+
+            ROIs = np.zeros((xlim, ylim, bbox_count))
+            for i,box in enumerate(bboxes):
+                ROI = np.zeros((xlim,ylim))
+                [y1,x1,y2,x2] = box
+
+                r = np.array([y1,y1,y2,y2]) #arrange vertices in clockwise order
+                c = np.array([x1,x2,x2,x1])
+
+                rr, cc = skimage.draw.polygon(r, c) #Draw box
+                ROI[rr,cc] = 1
+
+                ROIs[:,:,i] = ROI #Store as mask
+        else:
+            raise TypeError
+
+        ROIs = ROIs.astype(int)  #Cast to int for matrix multiplication
+
+        #Iterate through ROIs
+        (x,y,N) = ROIs.shape
+        for i in range(0,N,1):
+
+            [y1,x1,y2,x2] = bboxes[i] #Get correct box
+            masked_image = copy.deepcopy(image) #Copy image to create mask
+
+            ROI = ROIs[:,:,i] #Fetch mask
+            assert ROI.min() == 0 and ROI.max() == 1 #verify correct mask range
+
+            ch_count = masked_image.shape[-1] #Minimum of one trailing channel
+
+            # Apply mask over all channels, elementwise multiplication
+            for ch in range(0,ch_count,1):
+                masked_image[:,:,ch] = np.multiply(masked_image[:,:,ch], ROI)
+
+            #Now extract the entire bbox of the masked image
+            cell_instance = masked_image[y1:y2+1, x1:x2+1, :] #Extract the bounding box of ROI
+
+            #Add to output struct
+            output[cond_ID].append(cell_instance)
+
+    return output
+
+
+
+
+
+
+
+
+
 
 
 
@@ -417,10 +518,6 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
             compute_pixel_metrics(test_set, [image_id], model)  # Compute pixel confusion mats
 
         print('AP:0.5-0.9 per image average: ' + str( np.around(mAPs,2)))
-
-def calculate_dataset_mAP(dataset_folder = None):
-    assert os.path.isdir(source), 'Dataset_folder must be a path to dataset directory.'
-
 
 
 
