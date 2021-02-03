@@ -9,6 +9,7 @@ from helpers import *
 from implementations import *
 from mask_generators import *
 from segmentation import *
+from classification import *
 
 import numpy as np
 
@@ -153,7 +154,7 @@ if __name__ == '__main__':
 
     output = os.path.join(get_parent_path(1),'Data', 'Dataset1_15_01_2021')
 
-    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output, proportions = (0.7,0.2,0.1), seed = 40 )
+    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0.3, validation_size=0.1, seed = 42 )
 
     #---TRAIN 1ST STAGE MODEL---
 
@@ -186,7 +187,8 @@ if __name__ == '__main__':
     weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
 
 
-    output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    manual_struct = struct_from_file(dataset_folder = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021'), class_id = 1)
 
     #---PREPARE DATASET WITH BOTH CHANNELS
 
@@ -196,12 +198,26 @@ if __name__ == '__main__':
 
     pipeline_cells = ProcessingPipeline(data_folder, 'NIM')
     pipeline_cells.Sort(cond_IDs=cond_IDs, dims=img_dims, image_channels=image_channels, output_folder = multichannel_folder)
-    pipeline_cells.Collect(cond_IDs=cond_IDs, image_channels=image_channels)
+    pipeline_cells.Collect(cond_IDs=cond_IDs, image_channels=image_channels, registration_target=0)
 
-    #---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS
-    cells = generate_cells_dataset(input=output_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
-    print('eh')
-    #
+    #---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS, SPLIT AND SAVE
+    cells = cells_from_struct(input=manual_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
+
+    X_train, X_test, y_train, y_test = split_cell_sets(input=cells, test_size=0.2, random_state=42)
+
+    #cells_folder = os.path.join(get_parent_path(1),'Data','Cells_dataset' )
+    #save_cells_dataset(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, class_id_to_name=cells['class_id_to_name'], output_folder=cells_folder)
+
+
+    #---TRAIN 2ND STAGE VGG ON SETS
+    logdir = os.path.join(get_parent_path(1),'VGG16_run1')
+    train_vgg16(X_train = X_train, y_train = y_train, resize_target=(64,64,3), class_count=3, logdir=logdir)
+
+
+
+
+
+
 
     #--- INSPECT TRAIN DATASET AND AUGMENTATION---
 

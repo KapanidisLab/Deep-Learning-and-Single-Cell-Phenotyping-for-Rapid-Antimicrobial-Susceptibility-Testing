@@ -11,7 +11,7 @@ from mrcnn import config
 from mrcnn import utils
 from mrcnn import model as modellib
 from mrcnn import visualize as visualize
-import os
+import os, sys
 
 import numpy as np
 import sklearn.metrics
@@ -110,8 +110,7 @@ def makedir(path):  # Make directory if it doesn't exist yet.
         os.mkdir(path)
 
 
-def get_parent_path(
-        n):  # Generate correct parent directory, n levels up cwd. Useful for robust relative imports on different OS. 0 is the current cwd parent, 1 is the parent of the parent, etc
+def get_parent_path(n):  # Generate correct parent directory, n levels up cwd. Useful for robust relative imports on different OS. 0 is the current cwd parent, 1 is the parent of the parent, etc
     import os
     assert n >= 0
     cwd = os.getcwd()
@@ -289,6 +288,7 @@ def image_stats(image_id, dataset):
     }
 
 def fetch_image(image_dir, filename):
+    #Fetch image matching filename with recursive search down from image_dir
 
     matched_image = False
 
@@ -310,3 +310,19 @@ def fetch_image(image_dir, filename):
                     raise TypeError('More than one image matching filename found')
 
     return image
+
+def summarize_diagnostics(history):
+    #Basic plotting from keras history object
+
+	# plot loss
+    plt.subplot(211)
+    plt.title('Cross Entropy Loss')
+    plt.plot(history.history['loss'], color='blue', label='train')
+    plt.plot(history.history['val_loss'], color='orange', label='validation')
+    # plot accuracy
+    plt.subplot(212)
+    plt.title('Classification Accuracy')
+    plt.plot(history.history['acc'], color='blue', label='train')
+    plt.plot(history.history['val_acc'], color='orange', label='validation')
+    plt.show()
+
