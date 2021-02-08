@@ -50,9 +50,10 @@ def struct_from_file(dataset_folder=None, class_id = 0):
                 masks.append(mask) #TODO Preallocate this for speed
 
 
-            masks = np.asarray(masks) #Convert to numpy arrays
+            masks = np.asarray(masks, dtype='bool') #Convert to numpy arrays
             (N,x,y) = masks.shape
-            masks = np.reshape(masks,(x,y,N)) #Reshape masks from (N,x,y) -> (x,y,N) to match.
+
+            masks = np.moveaxis(masks,0,-1) #Reshape masks from (N,x,y) -> (x,y,N) to match.
 
             bboxes = extract_bboxes(masks)  # Get bbox using original utility
 
@@ -263,80 +264,166 @@ def save_cells_dataset(X_train=None, X_test=None, y_train=None, y_test=None, cla
     iterate(X_test, y_test, mode='Test', pathmapping=category_ID_to_savepath)
 
 
-def train_vgg16(X_train, y_train, resize_target = None, class_count = None, logdir = None):
+def define_model(mode = None, resize_target=None, class_count=None, initial_lr=None, opt=None):
+    #Defines and returns one of the included keras architectures
+
+
+    from keras.applications.vgg16 import VGG16
+    from keras.applications.resnet50 import ResNet50
+    from keras.applications.densenet import DenseNet121
+    from keras.optimizers import SGD, Adam, Nadam
+
+
+    #Select model from supported modes
+
+    if mode == 'VGG16':
+        model = VGG16(include_top=True, weights=None, input_shape=resize_target, classes = class_count)
+    elif mode == 'ResNet50':
+        model = ResNet50(include_top=True, weights=None, input_shape=resize_target, classes=class_count)
+    elif mode == 'DenseNet121':
+        model = DenseNet121(include_top=True, weights=None, input_shape=resize_target, classes=class_count)
+    else:
+        raise TypeError('Model {} not supported'.format(mode))
+
+    for layer in model.layers:
+        layer.trainable = True #Ensure all layers are trainable
+
+
+    #Select optimimzer
+    if opt == 'SGD+N': #SGD with nestrov
+        optimizer = SGD(lr=initial_lr, momentum=0.9, nesterov=True) #SGD with nesterov momentum, no vanilla version
+    elif opt == 'SGD': #SGD with ordinary momentum
+        optimizer = SGD(lr=initial_lr, momentum=0.9, nesterov=False)  # SGD with nesterov momentum, no vanilla version
+    elif opt == 'NAdam':
+        optimizer = Nadam(lr=initial_lr)  # Nestrov Adam
+    elif opt == 'Adam':
+        optimizer = Adam(lr=initial_lr)  # Adam
+    else:
+        raise TypeError('Optimizer {} not supported'.format(opt))
+
+
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    return model
+
+
+def train(mode = None, X_train = None, y_train = None, resize_target = None, class_count = None, logdir = None, **kwargs):
     '''
     Trains vgg16 standard keras implementation on cells_object. Loads entire dataset into RAM by default for easier
     preprocessing (Change this is dataset size becomes too big). Random weight init.
     '''
 
 
-    from keras.applications.vgg16 import VGG16
-    from keras.optimizers import Adam, SGD
     from keras.preprocessing.image import ImageDataGenerator
     from keras.utils import to_categorical
     from skimage.transform import resize
     import keras.callbacks
     from datetime import datetime
 
-    def define_model(resize_target=None, class_count=None):
+    #Get optional parameters, if not supplied load default values
+    batch_size = kwargs.get('batch_size',16)
+    epochs = kwargs.get('epochs',100)
+    learning_rate = kwargs.get('learning_rate',0.001)
+    dt_string = kwargs.get('dt_string', None)
+    optimizer = kwargs.get('optimizer', 'SGD+N')
 
-        model = VGG16(include_top=True, weights=None, input_shape=resize_target, classes = class_count)
-
-        for layer in model.layers:
-            layer.trainable = True #Ensure all layers are trainable
-
-        #optimizer = Adam(lr=0.01) #Adam with Keras default hyperparameters
-        optimizer = SGD(lr=0.001, momentum=0.9)
-        model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-
-        return model
-
+    #Create model instance
+    model = define_model(mode=mode, resize_target=resize_target, class_count=class_count, initial_lr=learning_rate, opt=optimizer)
 
     #Load and resize images, without maintaining aspect ratio.
     #One-hot encode labels
 
+    #n = [0,50,100,150,200,250]
+
+    #inspect_model_data(X_train, y_train, n)
+
     X_train = [resize(img, resize_target) for img in X_train]
     X_train = np.asarray(X_train)
-
     y_train = to_categorical(y_train)
 
-    #Create model instance
-    model = define_model(resize_target=resize_target, class_count=class_count)
+    #inspect_model_data(X_train, y_train, n)
+
 
     #Generator class. Compute pre-processing sttistics. Can also specify on the fly augmentation.
     validation_split = 0.1
-    batch_size = 16
 
-    datagen = ImageDataGenerator(featurewise_center=False, fill_mode='nearest', validation_split=validation_split, data_format='channels_last') #10% validation split
+    datagen = ImageDataGenerator(featurewise_center=True, featurewise_std_normalization=False, fill_mode='constant',
+                                 cval=0, validation_split=validation_split, data_format='channels_last',
+                                 horizontal_flip=True, vertical_flip=True, rotation_range=180,
+                                 width_shift_range = 0.2, height_shift_range=0.2
+                                 ) #10% validation split
     datagen.fit(X_train)
 
     #Create iterators
     train_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='training')
     val_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='validation')
 
+    #inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
 
-    #Create callbacks
+    #Savefile name
 
-    now = datetime.now()
-    dt_string = now.strftime("%d_%m_%Y_%H:%M")
-    checkpoint_name = 'VGG16_'+dt_string+'.h5'
+    if dt_string is None:
+        now = datetime.now()
+        dt_string = now.strftime("%d_%m_%Y_%H:%M")
+
+    checkpoint_name = dt_string + '.h5'
+
+    #Create callbacks and learning rate scheduler. Reduce LR by factor 10 half way through
+
+    def scheduler(epoch, lr):
+        if epoch < round(epochs/2):
+            return lr
+        else:
+            return learning_rate/10 #initial learning rate from outer scope divided by 10
 
     callbacks = [
         keras.callbacks.TensorBoard(log_dir=logdir,
                                     histogram_freq=0, write_graph=True, write_images=True),
-        # EDIT - set write images to True
         keras.callbacks.ModelCheckpoint(os.path.join(logdir,checkpoint_name),
                                         verbose=0, save_weights_only=True, save_best_only=True, monitor='loss',
                                         mode='min'),
+        keras.callbacks.LearningRateScheduler(scheduler, verbose=0)
     ]
 
     #Train
-    history = model.fit_generator(train_it, steps_per_epoch=len(train_it), validation_data=val_it, validation_steps=len(val_it), epochs=50, verbose=1, callbacks=callbacks)
+    history = model.fit_generator(train_it, steps_per_epoch=len(train_it), validation_data=val_it, validation_steps=len(val_it), epochs=epochs, verbose=1, callbacks=callbacks)
 
     #Plot basic stats
-    summarize_diagnostics(history)
+    summarize_diagnostics(history, checkpoint_name)
 
 
-    #Create iterators from file
-    #train_it = datagen.flow_from_directory(traindir,subset='training', class_mode='categorical', batch_size=16, target_size=(224, 224), color_mode="rgb", shuffle=True, seed =42)
-    #val_it = datagen.flow_from_directory(traindir,subset='validation', class_mode='categorical', batch_size=16, target_size=(224, 224), color_mode="rgb", shuffle=True, seed =42)
+def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None, resize_target = None, class_count = None, logdir = None ):
+
+    #Compute permutations of main parameters, call train() for each permutation. Wrap in multiprocessing to force GPU
+    #memory release between runs, which otherwise doesn't happen
+
+    import itertools, multiprocessing
+
+    keysum = ['batch_size', 'learning_rate', 'epochs', 'optimizer']
+    assert all([var in parameter_grid for var in keysum]), 'Check all parameters given'
+
+    makedir(logdir) #Creat dir for logs
+
+    for i, permutation in enumerate(itertools.product(parameter_grid['batch_size'], parameter_grid['learning_rate'], parameter_grid['epochs'], parameter_grid['optimizer'])):
+
+        (batch_size, learning_rate, epochs, optimizer) = permutation #Fetch parameters
+        dt_string = "{} BS {}, LR {}, epochs {}, opt {}".format(mode, batch_size, learning_rate, epochs, optimizer)
+
+        #Create separate subdir for each run, for tensorboard ease
+
+        logdir_run = os.path.join(logdir,dt_string)
+        makedir(logdir_run)
+
+        kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'batch_size': batch_size,
+                  'learning_rate': learning_rate, 'epochs': epochs, 'resize_target': resize_target,
+                  'class_count': class_count, 'logdir': logdir_run, 'optimizer': optimizer, 'dt_string': dt_string}
+
+        p = multiprocessing.Process(target=train, kwargs=kwargs)
+        p.start()
+        p.join()
+
+
+
+
+
+

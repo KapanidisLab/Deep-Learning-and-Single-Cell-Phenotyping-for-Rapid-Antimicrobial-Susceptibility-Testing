@@ -179,19 +179,31 @@ if __name__ == '__main__':
         iaa.Sometimes(0.5, iaa.Cutout(nb_iterations=(1, 10), size=0.05, squared=False, cval=0))
     ]
 
+    # --- INSPECT TRAIN DATASET AND AUGMENTATION---
+
+    # inspect_dataset(dataset_folder = train_dir)
+    # inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
+
+    # --- TRAIN 1st STAGE SEGMENTER
+
     #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
-    #---SEGMENT DATASET---
+    # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
+
+    # inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
+    # optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
+    # optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
+    # inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
+
+#---------------------------------------------------------------------------------------------------------------------------------
+
 
     test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Test')
     weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
 
-
     #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
-    manual_struct = struct_from_file(dataset_folder = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021'), class_id = 1)
 
     #---PREPARE DATASET WITH BOTH CHANNELS
-
 
     multichannel_folder = os.path.join(get_parent_path(1), data_folder, 'multichannel')
     image_channels = ['NR','DAPI']
@@ -201,6 +213,10 @@ if __name__ == '__main__':
     pipeline_cells.Collect(cond_IDs=cond_IDs, image_channels=image_channels, registration_target=0)
 
     #---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS, SPLIT AND SAVE
+
+    manual_struct = struct_from_file(dataset_folder=os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021'),
+                                     class_id=1)
+
     cells = cells_from_struct(input=manual_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
 
     X_train, X_test, y_train, y_test = split_cell_sets(input=cells, test_size=0.2, random_state=42)
@@ -209,27 +225,35 @@ if __name__ == '__main__':
     #save_cells_dataset(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, class_id_to_name=cells['class_id_to_name'], output_folder=cells_folder)
 
 
-    #---TRAIN 2ND STAGE VGG ON SETS
-    logdir = os.path.join(get_parent_path(1),'VGG16_run1')
-    train_vgg16(X_train = X_train, y_train = y_train, resize_target=(64,64,3), class_count=3, logdir=logdir)
+    #---GRID SEARCH 2nd STAGE ON SETS
+    logdir = os.path.join(get_parent_path(1),'Second_Stage')
+    resize_target = (64,64,3)
+    class_count = 3
+
+    learn_rates = [0.0005,0.001, 0.01, 0.1]
+    batch_sizes = [8,16,32,64]
+    epochs = [100]
+    optimizers = ['SGD+N', 'NAdam']
+
+    param_grid = dict(learning_rate=learn_rates, batch_size=batch_sizes, epochs=epochs, optimizer=optimizers)
+
+    optimize(mode='VGG16', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target, class_count=class_count,
+             logdir=logdir)
+
+    optimize(mode='ResNet50', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target,
+             class_count=class_count,
+             logdir=logdir)
+
+    optimize(mode='DenseNet121', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target,
+             class_count=class_count,
+             logdir=logdir)
 
 
 
+    #grid_search(mode='VGG16', X_train=X_train, y_train=y_train, parameter_grid=param_grid, constant_grid=const_grid, resize_target=resize_target,
 
 
 
-
-    #--- INSPECT TRAIN DATASET AND AUGMENTATION---
-
-    #inspect_dataset(dataset_folder = train_dir)
-    #inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
-
-    #--- INSPECT 1st STAGE STEPWISE
-
-    #inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
-    #optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
-    #optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
-    #inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
 
 
     

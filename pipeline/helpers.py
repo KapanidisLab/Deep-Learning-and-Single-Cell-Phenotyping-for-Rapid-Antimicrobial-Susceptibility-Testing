@@ -311,18 +311,73 @@ def fetch_image(image_dir, filename):
 
     return image
 
-def summarize_diagnostics(history):
+def summarize_diagnostics(history, plot_title):
     #Basic plotting from keras history object
 
+    fig, axs = plt.subplots(2, 1)
+    fig.suptitle(plot_title, y=1.05)
+
+    fig.subplots_adjust(top=0.65)
+
 	# plot loss
-    plt.subplot(211)
-    plt.title('Cross Entropy Loss')
-    plt.plot(history.history['loss'], color='blue', label='train')
-    plt.plot(history.history['val_loss'], color='orange', label='validation')
+    axs[0].set_title(plot_title)
+    axs[0].plot(history.history['loss'], color='blue', label='train')
+    axs[0].plot(history.history['val_loss'], color='orange', label='validation')
+    axs[0].set_xlabel('Epoch')
+    axs[0].set_ylabel('Cross Entropy Loss')
+    axs[0].legend(loc="upper right")
     # plot accuracy
-    plt.subplot(212)
-    plt.title('Classification Accuracy')
-    plt.plot(history.history['acc'], color='blue', label='train')
-    plt.plot(history.history['val_acc'], color='orange', label='validation')
+    axs[1].set_title('Classification Accuracy')
+    axs[1].plot(history.history['acc'], color='blue', label='train')
+    axs[1].plot(history.history['val_acc'], color='orange', label='validation')
+    axs[1].set_xlabel('Epoch')
+    axs[1].set_ylabel('Accuracy')
+    axs[1].legend(loc="lower right")
+
+    fig.tight_layout()
+    plt.show()
+
+def inspect_model_data(X, y, n):
+
+    import matplotlib.pyplot as plt
+    import skimage, skimage.exposure
+
+    # Find indexes matching each label type
+
+    uniques = np.unique(y, axis=0)  # Get unique labels
+    class_count = len(uniques)  # Get total classes
+
+    samples = len(n)
+
+    fig, axs = plt.subplots(class_count, samples,constrained_layout=True, figsize=(samples*4,class_count*4))
+
+    # Select samples from each category, either randomly or from supplied index
+    for i, unique_y in enumerate(uniques):
+
+        idx = np.asarray([i for i,value in enumerate(y) if (value == unique_y).all()]) #Select indicies matching each unique label
+
+        # Index with n
+        selection = idx[n]
+
+        if isinstance(X,np.ndarray): # Select images by index
+            imgs = X[selection,:,:,:]
+        elif isinstance(X,list):
+            imgs = [X[i] for i in selection]
+        else:
+            raise TypeError
+
+        for j in range(0,len(selection),1):
+            img = imgs[j]
+
+            #Stretch contrast
+            p2, p98 = np.percentile(img, (2, 98))
+            img = skimage.exposure.rescale_intensity(img, in_range=(p2, p98))
+
+            img = skimage.img_as_ubyte(img)  # Recast for imshow
+            title = 'Label: ' + str(unique_y)
+            axs[i, j].imshow(img)
+            axs[i, j].set_title(title)
+
+    fig.set_constrained_layout_pads(hspace=0.1, wspace=0.1)
     plt.show()
 
