@@ -181,19 +181,19 @@ if __name__ == '__main__':
 
     # --- INSPECT TRAIN DATASET AND AUGMENTATION---
 
-    # inspect_dataset(dataset_folder = train_dir)
-    # inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
+    inspect_dataset(dataset_folder = train_dir)
+    inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
 
     # --- TRAIN 1st STAGE SEGMENTER
 
-    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
     # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
 
     # inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
     # optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
     # optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
-    # inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
+    #inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
 
 #---------------------------------------------------------------------------------------------------------------------------------
 
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Test')
     weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
 
-    #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
 
     #---PREPARE DATASET WITH BOTH CHANNELS
 
@@ -220,38 +220,22 @@ if __name__ == '__main__':
     cells = cells_from_struct(input=manual_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
 
     X_train, X_test, y_train, y_test = split_cell_sets(input=cells, test_size=0.2, random_state=42)
-
     #cells_folder = os.path.join(get_parent_path(1),'Data','Cells_dataset' )
     #save_cells_dataset(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, class_id_to_name=cells['class_id_to_name'], output_folder=cells_folder)
 
-
-    #---GRID SEARCH 2nd STAGE ON SETS
-    logdir = os.path.join(get_parent_path(1),'Second_Stage')
+    #---TRAIN---
+    logdir = os.path.join(get_parent_path(1),'Second_Stage_2')
     resize_target = (64,64,3)
     class_count = 3
 
-    learn_rates = [0.0005,0.001, 0.01, 0.1]
-    batch_sizes = [8,16,32,64]
-    epochs = [100]
-    optimizers = ['SGD+N', 'NAdam']
+    train(mode='ResNet50', X_train=X_train, y_train=y_train, resize_target=resize_target, class_count=class_count, logdir=None, batch_size=64)
 
-    param_grid = dict(learning_rate=learn_rates, batch_size=batch_sizes, epochs=epochs, optimizer=optimizers)
+    #---PREDICT---
+    modelname = 'ResNet50_BS_64_LR_0001_opt_NAdam'
+    path = os.path.join(logdir, modelname+'.h5' )
+    mean = np.asarray([0.1715,0.1073,0])
 
-    optimize(mode='VGG16', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target, class_count=class_count,
-             logdir=logdir)
-
-    optimize(mode='ResNet50', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target,
-             class_count=class_count,
-             logdir=logdir)
-
-    optimize(mode='DenseNet121', X_train=X_train, y_train=y_train, parameter_grid=param_grid, resize_target=resize_target,
-             class_count=class_count,
-             logdir=logdir)
-
-
-
-    #grid_search(mode='VGG16', X_train=X_train, y_train=y_train, parameter_grid=param_grid, constant_grid=const_grid, resize_target=resize_target,
-
+    inspect(modelpath=path, X_test=X_test, y_test=y_test, mean=mean, resize_target=resize_target,class_id_to_name=cells['class_id_to_name'])
 
 
 

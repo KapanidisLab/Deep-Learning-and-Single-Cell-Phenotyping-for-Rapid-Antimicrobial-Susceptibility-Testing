@@ -349,7 +349,7 @@ def inspect_model_data(X, y, n):
 
     samples = len(n)
 
-    fig, axs = plt.subplots(class_count, samples,constrained_layout=True, figsize=(samples*4,class_count*4))
+    fig, axs = plt.subplots(class_count, samples,constrained_layout=True, figsize=(samples*2,class_count*2))
 
     # Select samples from each category, either randomly or from supplied index
     for i, unique_y in enumerate(uniques):

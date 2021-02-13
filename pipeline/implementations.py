@@ -95,12 +95,6 @@ def TrainTestVal_split(**kwargs):
     #Second split of train into train and val
     Train,Validation = sklearn.model_selection.train_test_split(Train_Val, test_size = validation_size, shuffle=True, random_state=seed)
 
-   # Train = tuple(random.sample(matches,train_n))
-   # remaining = tuple(set(matches) - set(Train)) #Remaining set
-
-   #Test = tuple(random.sample(remaining,test_n))
-
-   #Validation = tuple(set(remaining) - set(Test)) #Assign rest to validation
 
     assert len(Train) + len(Test) +len(Validation) == total
 

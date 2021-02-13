@@ -70,7 +70,73 @@ def struct_from_file(dataset_folder=None, class_id = 0):
     return output
 
 
+def apply_rois_to_image(input=None, mode=None, images=None):
+
+    #Expects a results list as prepared by predict_mrcnn_segmenter. Applies rois from segmenter to supplied images and
+    # returns single cell instances
+    import copy
+    output=[]
+
+    for i,image_result in enumerate(input):
+        image = images[i] #Get corresponding image
+        image_cells = []
+
+        if mode == 'masks':
+            ROIs = image_result['masks']  # In mask mode, use masks directly to mask out image segments
+            bboxes = image_result['rois']  # get bounding boxes to extract masked segments
+
+        elif mode == 'bbox':  # In bbox mode, use bboxes instead to mask segments
+
+            bboxes = image_result['rois']
+            bbox_count = bboxes.shape()[0]
+
+            ROIs = np.zeros((xlim, ylim, bbox_count))
+            for i, box in enumerate(bboxes):
+                ROI = np.zeros((xlim, ylim))
+                [y1, x1, y2, x2] = box
+
+                r = np.array([y1, y1, y2, y2])  # arrange vertices in clockwise order
+                c = np.array([x1, x2, x2, x1])
+
+                rr, cc = skimage.draw.polygon(r, c)  # Draw box
+                ROI[rr, cc] = 1
+
+                ROIs[:, :, i] = ROI  # Store as mask
+        else:
+            raise TypeError
+
+        ROIs = ROIs.astype(int)  # Cast to int for matrix multiplication
+
+        # Iterate through ROIs
+        (x, y, N) = ROIs.shape
+        for i in range(0, N, 1):
+
+            [y1, x1, y2, x2] = bboxes[i]  # Get correct box
+            masked_image = copy.deepcopy(image)  # Copy image to create mask
+
+            ROI = ROIs[:, :, i]  # Fetch mask
+            assert ROI.min() == 0 and ROI.max() == 1  # verify correct mask range
+
+            ch_count = masked_image.shape[-1]  # Minimum of one trailing channel
+
+            # Apply mask over all channels, elementwise multiplication
+            for ch in range(0, ch_count, 1):
+                masked_image[:, :, ch] = np.multiply(masked_image[:, :, ch], ROI)
+
+            # Now extract the entire bbox of the masked image
+            cell_instance = masked_image[y1:y2 + 1, x1:x2 + 1, :]  # Extract the bounding box of ROI
+
+            # Add to output for this image
+            image_cells.append(cell_instance)
+
+        #Append to total output
+        output.append(image_cells)
+
+    return output
+
+
 def cells_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
+    #TODO reuse apply rois in second half of this
 
     #Expects a results list as prepared by predict_mrcnn_segmenter.
     # cond_IDs = list of strings with condition identifiers
@@ -264,8 +330,8 @@ def save_cells_dataset(X_train=None, X_test=None, y_train=None, y_test=None, cla
     iterate(X_test, y_test, mode='Test', pathmapping=category_ID_to_savepath)
 
 
-def define_model(mode = None, resize_target=None, class_count=None, initial_lr=None, opt=None):
-    #Defines and returns one of the included keras architectures
+def define_model(mode = None, resize_target=None, class_count=None, initial_lr=None, opt=None, init_source=None):
+    #Defines and returns one of the included keras architectures. Init source either None for random init, or path to weights
 
 
     from keras.applications.vgg16 import VGG16
@@ -273,15 +339,21 @@ def define_model(mode = None, resize_target=None, class_count=None, initial_lr=N
     from keras.applications.densenet import DenseNet121
     from keras.optimizers import SGD, Adam, Nadam
 
+    #Select weight source
+    if init_source is None:
+        weights = None
+    else:
+        weights = init_source
+
 
     #Select model from supported modes
 
     if mode == 'VGG16':
-        model = VGG16(include_top=True, weights=None, input_shape=resize_target, classes = class_count)
+        model = VGG16(include_top=True, weights=weights, input_shape=resize_target, classes = class_count)
     elif mode == 'ResNet50':
-        model = ResNet50(include_top=True, weights=None, input_shape=resize_target, classes=class_count)
+        model = ResNet50(include_top=True, weights=weights, input_shape=resize_target, classes=class_count)
     elif mode == 'DenseNet121':
-        model = DenseNet121(include_top=True, weights=None, input_shape=resize_target, classes=class_count)
+        model = DenseNet121(include_top=True, weights=weights, input_shape=resize_target, classes=class_count)
     else:
         raise TypeError('Model {} not supported'.format(mode))
 
@@ -333,21 +405,21 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     #Load and resize images, without maintaining aspect ratio.
     #One-hot encode labels
 
-    #n = [0,50,100,150,200,250]
+    n = [0,50,100,150,200,250]
 
-    #inspect_model_data(X_train, y_train, n)
+    inspect_model_data(X_train, y_train, n)
 
     X_train = [resize(img, resize_target) for img in X_train]
-    X_train = np.asarray(X_train)
+    X_train = np.asarray(X_train) #Cast between 0-1, resize
     y_train = to_categorical(y_train)
 
-    #inspect_model_data(X_train, y_train, n)
+    inspect_model_data(X_train, y_train, n)
 
 
     #Generator class. Compute pre-processing sttistics. Can also specify on the fly augmentation.
     validation_split = 0.1
 
-    datagen = ImageDataGenerator(featurewise_center=True, featurewise_std_normalization=False, fill_mode='constant',
+    datagen = ImageDataGenerator(featurewise_center=False, featurewise_std_normalization=False, fill_mode='constant',
                                  cval=0, validation_split=validation_split, data_format='channels_last',
                                  horizontal_flip=True, vertical_flip=True, rotation_range=180,
                                  width_shift_range = 0.2, height_shift_range=0.2
@@ -358,7 +430,7 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     train_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='training')
     val_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='validation')
 
-    #inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
+    inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
 
     #Savefile name
 
@@ -378,9 +450,9 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
 
     callbacks = [
         keras.callbacks.TensorBoard(log_dir=logdir,
-                                    histogram_freq=0, write_graph=True, write_images=True),
+                                    histogram_freq=0, write_graph=False, write_images=True),
         keras.callbacks.ModelCheckpoint(os.path.join(logdir,checkpoint_name),
-                                        verbose=0, save_weights_only=True, save_best_only=True, monitor='loss',
+                                        verbose=0, save_weights_only=False, save_best_only=True, monitor='loss',
                                         mode='min'),
         keras.callbacks.LearningRateScheduler(scheduler, verbose=0)
     ]
@@ -390,6 +462,8 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
 
     #Plot basic stats
     summarize_diagnostics(history, checkpoint_name)
+
+
 
 
 def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None, resize_target = None, class_count = None, logdir = None ):
@@ -421,6 +495,77 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
         p = multiprocessing.Process(target=train, kwargs=kwargs)
         p.start()
         p.join()
+
+def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=None, class_id_to_name=None):
+
+    #Work on annotated (ie test) data.
+
+    from keras.models import load_model
+    from skimage.transform import resize
+    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import ConfusionMatrixDisplay
+
+    import matplotlib.pyplot as plt
+    #Load model
+    model = load_model(modelpath)
+
+    #Load and pre-process data
+    X_test = [resize(img, resize_target) for img in X_test]
+    X_test = np.asarray(X_test)  # Cast between 0-1, resize
+
+
+    #Subtract training mean
+    X_test = X_test - mean
+
+    #Evaluate
+    result = model.predict(X_test)
+    result = np.argmax(result,axis=1) #Get corresponding classes, pick maximum ##
+
+    #Map classnames to class labels
+    labels = [0]*len(class_id_to_name) #initialise array
+    for elm in class_id_to_name:
+        labels[elm['class_id']] = elm['name']
+
+
+    #Plot matrix
+    CM = confusion_matrix(y_test,result, normalize='true')
+    disp = ConfusionMatrixDisplay(confusion_matrix=CM, display_labels = labels)
+    disp.plot(cmap='Blues')
+    plt.show()
+
+def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
+    #Work on unannotated files
+    #TODO merge into inspect above
+
+    from keras.models import load_model
+    from skimage.transform import resize
+    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import ConfusionMatrixDisplay
+
+    import matplotlib.pyplot as plt
+    #Load model
+    model = load_model(modelpath)
+
+    #Load and pre-process data
+    X_test = [resize(img, resize_target) for img in X_test]
+    X_test = np.asarray(X_test)  # Cast between 0-1, resize
+
+    #Subtract training mean
+    X_test = X_test - mean
+
+    #Evaluate
+    result = model.predict(X_test)
+    result = np.argmax(result,axis=1) #Decode from one-hot to integer
+
+    return result
+
+
+
+
+
+
+
+
 
 
 

@@ -260,7 +260,7 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
     elif mode == 'images':
 
         assert isinstance(source, np.ndarray),' In images mode, the image source must be an ndarray.'
-        assert source.shape == (_,_,_,3), 'Images must be RGB'
+        assert len(source.shape) == 4, 'Images must be in format (n_samples,x,y,ch)'
         (N,x,y,ch) = source.shape #Get source info
         image_count = N
 
@@ -516,7 +516,7 @@ def inspect_dataset(**kwargs):
 
     # Object size stats
 
-    fig, ax = plt.subplots(1, len(image_area_bins))
+    fig, ax = plt.subplots(len(image_area_bins),1)
     fig.suptitle('Object size statistics', y=1)
     fig.tight_layout()
 
