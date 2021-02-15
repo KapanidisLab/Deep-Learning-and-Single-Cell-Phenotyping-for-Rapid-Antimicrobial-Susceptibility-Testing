@@ -101,7 +101,7 @@ if __name__ == '__main__':
     #Go through all images
     classifications =[]
     for img_cells in cells:
-        prediction = predict(modelpath=classifier_weights, X_test=img_cells, mean=mean, resize_target=resize_target)
+        prediction,model = predict(modelpath=classifier_weights, X_test=img_cells, mean=mean, resize_target=resize_target)
         classifications.append(prediction)
 
     #Show results

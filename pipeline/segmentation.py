@@ -291,11 +291,10 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
 
             elif mode == 'images':
-                image_id = None
                 image = source[i,:,:,:]
 
-                filename = kwargs.get('filename', None) #Optional parameter if in images mode
-
+                filenames = kwargs.get('filenames', None) #Optional parameter if in images mode
+                filename = filenames[i]
 
             results = model.detect(np.expand_dims(image, 0), verbose=0)[0] #Run detection routine
 
@@ -1086,6 +1085,196 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
         print('Preparing graphs...')
         plt.show()
         print('Graphs done!')
+
+def segmentations_to_oufti(input_struct, filenames, setfile, output_folder):
+    #Takes output struct from predict_mrcnn_segmenter and writes them in OUFTI compatible mat files. Requiers filenames
+    #for file writing, and a path to setfile, which contains oufti settings to embed.
+
+    def calculate_outline(cell_obj):
+        """
+        Plot the outline of the cell based on the current coordinate system.
+        The outline consists of two semicircles and two offset lines to the central parabola.[1]_[2]_
+        Parameters
+        ----------
+        ax : :class:`~matplotlib.axes.Axes`, optional
+            Matplotlib axes to use for plotting.
+        **kwargs
+            Additional kwargs passed to ax.plot().
+        Returns
+        -------
+        x,y : outline points
+        p1 : (x,y) tuple, index of first pole
+        p2 : (x,y) tuple, index of second pole
+        """
+
+        # Parametric plotting of offset line
+        # http://cagd.cs.byu.edu/~557/text/ch8.pdf
+        #
+        # Analysis of the offset to a parabola
+        # https://doi-org.proxy-ub.rug.nl/10.1016/0167-8396(94)00038-T
+
+        numpoints = 50  # vertices for linear sections of cell
+        numpoints_circle = 40  # vertices for both semicircles
+
+        t = np.linspace(cell_obj.coords.xl, cell_obj.coords.xr, num=numpoints)
+        a0, a1, a2 = cell_obj.coords.coeff
+
+        x_top = t + cell_obj.coords.r * ((a1 + 2 * a2 * t) / np.sqrt(1 + (a1 + 2 * a2 * t) ** 2))
+        y_top = a0 + a1 * t + a2 * (t ** 2) - cell_obj.coords.r * (1 / np.sqrt(1 + (a1 + 2 * a2 * t) ** 2))
+
+        x_bot = t + - cell_obj.coords.r * ((a1 + 2 * a2 * t) / np.sqrt(1 + (a1 + 2 * a2 * t) ** 2))
+        y_bot = a0 + a1 * t + a2 * (t ** 2) + cell_obj.coords.r * (1 / np.sqrt(1 + (a1 + 2 * a2 * t) ** 2))
+
+        # Left semicirlce
+        psi = np.arctan(-cell_obj.coords.p_dx(cell_obj.coords.xl))
+
+        th_l = np.linspace(-0.5 * np.pi + psi, 0.5 * np.pi + psi, num=numpoints_circle)
+        cl_dx = cell_obj.coords.r * np.cos(th_l)
+        cl_dy = cell_obj.coords.r * np.sin(th_l)
+
+        cl_x = cell_obj.coords.xl - cl_dx
+        cl_y = cell_obj.coords.p(cell_obj.coords.xl) + cl_dy
+
+        # Split left semicircle into 2 halves at midpoint.
+        frontcap_x = cl_x[:int(numpoints_circle / 2)]  # Get first half
+        frontcap_y = cl_y[:int(numpoints_circle / 2)]
+
+        endcap_x = cl_x[int(numpoints_circle / 2):]  # add final link to have a closed contour
+        endcap_y = cl_y[int(numpoints_circle / 2):]
+
+        # Right semicircle
+        psi = np.arctan(-cell_obj.coords.p_dx(cell_obj.coords.xr))
+
+        th_r = np.linspace(0.5 * np.pi - psi, -0.5 * np.pi - psi, num=numpoints_circle)
+        cr_dx = cell_obj.coords.r * np.cos(th_r)
+        cr_dy = cell_obj.coords.r * np.sin(th_r)
+
+        cr_x = cr_dx + cell_obj.coords.xr
+        cr_y = cr_dy + cell_obj.coords.p(cell_obj.coords.xr)
+
+        x_all = np.concatenate((frontcap_x[::-1], x_top, cr_x[::-1], x_bot[::-1], endcap_x[::-1]))
+        y_all = np.concatenate((frontcap_y[::-1], y_top, cr_y[::-1], y_bot[::-1], endcap_y[::-1]))
+
+        return x_all, y_all
+
+    from scipy.io import savemat
+    from colicoords import Data, Cell, CellPlot
+    import os, ast
+
+    makedir(output_folder) #Make output directory
+
+    cells = []
+    cell_ids = []
+    fit_errors = 0
+
+    #Iterate through all images
+    for i,result in enumerate(input_struct):
+        masks = result['masks'] #Get masks from image
+        filename = filenames[i] #Get corresponding filename to write
+        savepath = os.path.join(output_folder,filename)
+
+        #Itereate through all masks in image
+        for j in range(masks.shape[2]):
+            mask = masks[:,:,j]
+            mask[mask >= 244] = 1  #Binarize
+
+            # Calculate outline in cell coordinates and store
+            data = Data()
+            data.add_data(mask, 'binary')
+
+            try:
+                cell = Cell(data)
+            except np.linalg.LinAlgError:
+                fit_errors = fit_errors + 1
+
+            cp = CellPlot(cell)
+
+            xs, ys = calculate_outline(cp.cell_obj)
+
+            left_x, left_y = xs[0:int(len(xs) / 2 + 1)], ys[0:int(len(ys) / 2 + 1)]
+            right_x, right_y = xs[int(len(xs) / 2):], ys[int(len(ys) / 2):]
+
+            right_x = np.append(right_x, left_x[0])  # Add overhangs
+            right_y = np.append(right_y, left_y[0])
+
+            assert left_x.shape == right_x.shape == left_y.shape == right_y.shape
+            (i,) = left_x.shape
+
+            mesh = np.zeros((4, i))
+            mesh[0, :] = left_x
+            mesh[1, :] = left_y
+            mesh[2, :] = right_x[::-1]  # Rotate to match oufti format mesh orientation
+            mesh[3, :] = right_y[::-1]
+
+            mesh = np.transpose(mesh)  # Arrange to outfit format
+
+            # Calculate box around the cell
+            padding_x, padding_y = [10, 10]  # How many pixels of padding to add to box beyond cell extent
+            midx, midy = np.mean(xs), np.mean(ys)  # Midpoint of cell
+            cell_width, cell_height = xs.max() - xs.min(), ys.max() - ys.min()  # Cell extents
+
+            x_corner = midx - cell_width / 2 - padding_x
+            y_corner = midy - cell_height / 2 - padding_y
+            box_width = cell_width + 2 * padding_x
+            box_height = cell_height + 2 * padding_y
+
+            if x_corner < 0:  # Resize boxes if partially outside image, to ensure the cell is always at centre
+                box_width = box_width + x_corner
+                x_corner = x_corner - x_corner
+            if y_corner < 0:
+                box_height = box_height + y_corner
+                y_corner = y_corner - y_corner
+
+            box = [x_corner, y_corner, box_width, box_height]
+
+            cell_object = {'algorithm': 4, 'birthframe': 1, 'model': [], 'mesh': mesh, 'polarity': 0, 'stage': 1,
+                           'timelapse': 0, 'divisions': [], 'box': box, 'ancestors': [], 'descendants': []}
+
+            cells.append(cell_object)
+            cell_ids.append(j)
+
+        # Fill out struct fields with all information for this frame
+        meshData = np.empty(1, dtype='object')
+        meshData[0] = [cells]
+
+        cellId = np.empty(1, dtype='object')
+        cellId[0] = [cell_ids]
+
+        cellList = {'cellId': cellId, 'meshData': meshData}
+
+        cellListN = len(cell_ids)
+        coefPCA = []
+        mCell = []
+
+        sets = '/media/gilboal/Storage/Alex_Z/AMR_image/E_coli_LB_subpixel.txt'
+
+        #Get parameters from supplied file
+        p = {}
+        with open(setfile) as fh:
+            for line in fh:
+                if line.startswith('%') or line.startswith('\n'):
+                    continue  # Skip comment lines in file
+
+                key, value = line.strip().split('=', 1)
+                p[key] = value.strip()
+
+                try:
+                    p[key] = float(p[key])  # Convert read values to floats
+                except ValueError:  # alternative handler for lists
+                    p[key] = ast.literal_eval(p[key])
+
+        rawPhaseFolder = []
+        shiftfluo = [[0, 0], [0, 0]]
+        shiftframes = []
+        weights = []
+
+        file = {'cellList': cellList, 'cellListN': cellListN, 'coefPCA': coefPCA, 'mCell': mCell, 'p': p,
+                'rawPhaseFolder': rawPhaseFolder, 'shiftfluo': shiftfluo, 'shiftframes': shiftframes,
+                'weights': weights}
+
+        savemat(savepath, file)
+
+
 
 
 

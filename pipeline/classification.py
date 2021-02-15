@@ -6,7 +6,7 @@ import sys
 from helpers import *
 
 
-def struct_from_file(dataset_folder=None, class_id = 0):
+def struct_from_file(dataset_folder=None, class_id = 1):
 
     #Loads cell segmentations from a dataset folder, creating a struct compatible with cells_from_struct.
     #Useful for creating additional classification data from manually annotated data used to train the 1st stage.
@@ -506,26 +506,13 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=N
     from sklearn.metrics import ConfusionMatrixDisplay
 
     import matplotlib.pyplot as plt
-    #Load model
-    model = load_model(modelpath)
 
-    #Load and pre-process data
-    X_test = [resize(img, resize_target) for img in X_test]
-    X_test = np.asarray(X_test)  # Cast between 0-1, resize
-
-
-    #Subtract training mean
-    X_test = X_test - mean
-
-    #Evaluate
-    result = model.predict(X_test)
-    result = np.argmax(result,axis=1) #Get corresponding classes, pick maximum ##
+    result,model = predict(modelpath=modelpath,X_test=X_test, mean=mean, resize_target=resize_target)
 
     #Map classnames to class labels
     labels = [0]*len(class_id_to_name) #initialise array
     for elm in class_id_to_name:
         labels[elm['class_id']] = elm['name']
-
 
     #Plot matrix
     CM = confusion_matrix(y_test,result, normalize='true')
@@ -535,14 +522,10 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=N
 
 def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
     #Work on unannotated files
-    #TODO merge into inspect above
 
     from keras.models import load_model
     from skimage.transform import resize
-    from sklearn.metrics import confusion_matrix
-    from sklearn.metrics import ConfusionMatrixDisplay
 
-    import matplotlib.pyplot as plt
     #Load model
     model = load_model(modelpath)
 
@@ -557,7 +540,7 @@ def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
     result = model.predict(X_test)
     result = np.argmax(result,axis=1) #Decode from one-hot to integer
 
-    return result
+    return result,model #Return result and model instance used
 
 
 

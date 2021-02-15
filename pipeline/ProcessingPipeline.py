@@ -181,12 +181,12 @@ if __name__ == '__main__':
 
     # --- INSPECT TRAIN DATASET AND AUGMENTATION---
 
-    inspect_dataset(dataset_folder = train_dir)
-    inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
+    #inspect_dataset(dataset_folder = train_dir)
+    #inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
 
     # --- TRAIN 1st STAGE SEGMENTER
 
-    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
     # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
 
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Test')
     weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
 
-    output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
 
     #---PREPARE DATASET WITH BOTH CHANNELS
 
@@ -220,8 +220,6 @@ if __name__ == '__main__':
     cells = cells_from_struct(input=manual_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
 
     X_train, X_test, y_train, y_test = split_cell_sets(input=cells, test_size=0.2, random_state=42)
-    #cells_folder = os.path.join(get_parent_path(1),'Data','Cells_dataset' )
-    #save_cells_dataset(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, class_id_to_name=cells['class_id_to_name'], output_folder=cells_folder)
 
     #---TRAIN---
     logdir = os.path.join(get_parent_path(1),'Second_Stage_2')
@@ -236,6 +234,7 @@ if __name__ == '__main__':
     mean = np.asarray([0.1715,0.1073,0])
 
     inspect(modelpath=path, X_test=X_test, y_test=y_test, mean=mean, resize_target=resize_target,class_id_to_name=cells['class_id_to_name'])
+
 
 
 
