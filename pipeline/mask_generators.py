@@ -200,10 +200,3 @@ def masks_from_OUFTI(**kwargs):
     sys.stdout.flush()
 
 
-
-if __name__ == '__main__':
-    import os
-
-    input_path = os.path.join(r'C:\Users\zagajewski\Desktop\AMR_png_images_for_segmentation\18_08_20\WT_fakePC')
-    output_path = os.path.join(r'C:\Users\zagajewski\Desktop\AMR_png_images_for_segmentation\18_08_20\WT_fakePC')
-    masks_from_OUFTI(mask_path=input_path, output_path=output_path)

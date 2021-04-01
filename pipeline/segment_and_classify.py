@@ -90,7 +90,7 @@ if __name__ == '__main__':
 
     #Create and run segmenter
     configuration = BacConfig()
-    segmentations = predict_mrcnn_segmenter(source=img_NR, mode='images', weights=segmenter_weights, config=configuration)
+    segmentations = predict_mrcnn_segmenter(source=img_NR, mode='images', weights=segmenter_weights, config=configuration, filenames=filename)
 
     #Create and run classifier
     cells = apply_rois_to_image(input=segmentations, mode='masks', images=img)

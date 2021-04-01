@@ -61,7 +61,7 @@ class BacConfig(config.Config):
     POST_NMS_ROIS_TRAINING = 1000
     POST_NMS_ROIS_INFERENCE = 2000
 
-    RPN_ANCHOR_SCALES = (8, 16, 32, 64)  # Anchor scales decreased to match size of bacteria better
+    RPN_ANCHOR_SCALES = (8,16,32,64,128)  # Anchor scales decreased to match size of bacteria better. 5 values to match backbone strides.
     RPN_NMS_THRESHOLD = 0.9
     RPN_TRAIN_ANCHORS_PER_IMAGE = 256
 
@@ -116,8 +116,7 @@ class BacDataset(utils.Dataset):
             image_id = idx
 
             img_path = os.path.join(imdir, filename)
-            an_path = os.path.join(andir, os.path.splitext(filename)[
-                0])  # Path to folder with image annotations, remove filename extension
+            an_path = os.path.join(andir, os.path.splitext(filename)[0])  # Path to folder with image annotations, remove filename extension
 
             self.add_image('dataset', image_id=image_id, path=img_path, annotation=an_path)
 
@@ -1086,7 +1085,7 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
         plt.show()
         print('Graphs done!')
 
-def segmentations_to_oufti(input_struct, filenames, setfile, output_folder):
+def segmentations_to_OUFTI(input_struct, filenames, setfile, output_folder):
     #Takes output struct from predict_mrcnn_segmenter and writes them in OUFTI compatible mat files. Requiers filenames
     #for file writing, and a path to setfile, which contains oufti settings to embed.
 
@@ -1245,8 +1244,6 @@ def segmentations_to_oufti(input_struct, filenames, setfile, output_folder):
         cellListN = len(cell_ids)
         coefPCA = []
         mCell = []
-
-        sets = '/media/gilboal/Storage/Alex_Z/AMR_image/E_coli_LB_subpixel.txt'
 
         #Get parameters from supplied file
         p = {}

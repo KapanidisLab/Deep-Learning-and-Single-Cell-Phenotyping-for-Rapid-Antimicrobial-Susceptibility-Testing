@@ -11,7 +11,7 @@ from mask_generators import *
 from segmentation import *
 from classification import *
 
-import numpy as np
+import numpy as np, os
 
 #sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline") #Append paths such that sub-processes can find functions
 #sys.path.append(r"C:\Users\User\PycharmProjects\AMR\pipeline\helpers.py")
@@ -119,7 +119,7 @@ class ProcessingPipeline:
     
     
 if __name__ == '__main__':
-
+    '''
     import os
     data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20')
     
@@ -156,6 +156,7 @@ if __name__ == '__main__':
 
     pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0.3, validation_size=0.1, seed = 42 )
 
+    '''
     #---TRAIN 1ST STAGE MODEL---
 
     weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     output_dir = get_parent_path(1)
 
     configuration = BacConfig()
-    configuration.NAME = 'PredConfig1'
+    configuration.NAME = 'PredConfig_membrane_fluor'
 
     import imgaug.augmenters as iaa  # import augmentation library
 
@@ -186,7 +187,7 @@ if __name__ == '__main__':
 
     # --- TRAIN 1st STAGE SEGMENTER
 
-    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
     # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
 
