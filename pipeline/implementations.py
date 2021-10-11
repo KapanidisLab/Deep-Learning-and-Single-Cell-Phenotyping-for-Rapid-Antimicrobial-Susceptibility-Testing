@@ -6,6 +6,12 @@ Created on Sun Apr 26 17:17:28 2020
 """
 
 from helpers import *
+import fnmatch,distutils
+from tqdm import tqdm
+import sklearn.model_selection
+import distutils.dir_util
+import os
+
 
 def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for image-wise operation to fit with Parallel
     import skimage.io, os
@@ -15,10 +21,33 @@ def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for imag
     return True
 
 
-def TrainTestVal_split(**kwargs):
+def TrainTestVal_split(data_sources=None, annotation_sources=None, output_folder=None, test_size=None,
+                       validation_size=None, seed=42):
     '''
-        Takes pre-prepared images and annotation masks and assembles a dataset folder. Supports multiple sources of
-        images and annotations.
+    Takes pre-prepared images and annotation masks and assembles a dataset folder. Supports multiple sources of
+    images and annotations. MaskRCNN will draw its training and evaluation data from this folder.
+
+     output_folder/
+        ├── Train/
+        │   ├── annots
+        │   │    ├── image1
+        │   │    │   ├── Cell1.bmp
+        │   │    │   ├── Cell2.bmp
+        │   │    │   └── ...
+        │   │    ├── image2
+        │   │   ...  ├── Cell1.bmp
+        │   │        ├── Cell2.bmp
+        │   │        └── ...
+        │   └── images
+        │        ├── image1.tif
+        │        ├── image2.tif
+        │        └── ...
+        ├── Validation/
+        │   ├── ...
+        │   └── ...
+        └── Test/
+            ├── ...
+            └── ...
 
         Parameters
         ----------
@@ -40,21 +69,10 @@ def TrainTestVal_split(**kwargs):
 
         '''
 
-    data_sources = kwargs.get('data_sources', False)
-    annotation_sources = kwargs.get('annotation_sources', False)
-    output_folder = kwargs.get('output_folder', False)
-    test_size = kwargs.get('test_size', False)
-    validation_size = kwargs.get('validation_size', False)
-    seed = kwargs.get('seed', False)
-
-    if not all([data_sources, annotation_sources, output_folder, test_size, validation_size, seed]):  # Verify input
-        raise TypeError
+    print('Preparing standard dataset.')
+    print()
 
     assert len(data_sources) == len(annotation_sources), 'Each data source must have a corresponding annotation source'
-
-
-    import os,numpy,fnmatch,random, distutils.file_util, distutils.dir_util, sklearn.model_selection
-    from tqdm import tqdm
 
     #Find total number of segmentation folders
     seg_folders = []
@@ -81,23 +99,22 @@ def TrainTestVal_split(**kwargs):
                     img = os.path.join(data_folder,image)
                     matches.append([folder_path,img])
 
-    def to_tuple(lst):
-        return tuple(to_tuple(i) if isinstance(i, list) else i for i in lst)
-    #matches = to_tuple(matches) #Recursevely convert to tuple so it can be hashed later
-
-
-    #Randomly pick training set without replacement, then test set from rest
-    random.seed(seed)
-
     #First split into train+val and test
-    Train_Val,Test = sklearn.model_selection.train_test_split(matches, test_size = test_size, shuffle=True, random_state=seed)
+    if test_size == 0:  #In the degenerate case, don't split
+        Train_Val = matches
+        Test = []
+    else:
+        Train_Val,Test = sklearn.model_selection.train_test_split(matches, test_size = test_size, shuffle=True, random_state=seed)
 
     #Second split of train into train and val
-    Train,Validation = sklearn.model_selection.train_test_split(Train_Val, test_size = validation_size, shuffle=True, random_state=seed)
+    if validation_size == 0: #Degenerate  case again
+        Train = Train_Val
+        Validation = []
+    else:
+        Train,Validation = sklearn.model_selection.train_test_split(Train_Val, test_size = validation_size, shuffle=True, random_state=seed)
 
 
     assert len(Train) + len(Test) +len(Validation) == total
-
 
     #Create output structure and copy files into it
     llist = {'Train': Train, 'Test': Test, 'Validation': Validation}
@@ -118,6 +135,12 @@ def TrainTestVal_split(**kwargs):
             tail = os.path.split(elm[0])[1]
             distutils.dir_util.copy_tree(elm[0],os.path.join(annotpath,tail))
             distutils.file_util.copy_file(elm[1],imagepath)
+
+    print('Standard dataset prepared.')
+    print()
+
+    return os.path.join(output_folder,'Train'), os.path.join(output_folder,'Test'), os.path.join(output_folder,'Validation')
+
 
 def Equalize_Channels(**kwargs):
     '''
@@ -226,7 +249,7 @@ def Equalize_Channels(**kwargs):
 
 
 
-def SortNIM(data_folder, output_folder = None, **kwargs):
+def SortNIM(data_folder, output_folder = None, crop_mapping=None, **kwargs):
     
     '''
     Sorts through NIM default file structure and sorts files into subfolders based on condtion type.
@@ -236,11 +259,12 @@ def SortNIM(data_folder, output_folder = None, **kwargs):
     path : string
         path to directory with image data
     dims : Array-like of ints of length 3
-        img_dimes = (sx,sy,sz), the dimensions of each image to sort
+        img_dimes = (sx,sy), the dimensions of each image to sort
     cond_IDs : Array-like of strings
         cond_IDs = ['WT', 'RIF', ... ], where entries correspond to condition IDs in filenames.
     image_channels  : Array like of strings
         image_channels = ['BF', 'DAPI', ...], where entries correspond to image channels
+    FOVportion : string, allowed values 'left','right'
 
     Returns
     -------
@@ -251,6 +275,7 @@ def SortNIM(data_folder, output_folder = None, **kwargs):
     img_dims = kwargs.get('dims', False)
     cond_IDs = kwargs.get('cond_IDs', False)
     image_channels = kwargs.get('image_channels', False)
+    queue = kwargs.get('comms_queue',None)
     
     if not all([data_folder,img_dims,cond_IDs]): #Verify input
         raise TypeError
@@ -276,31 +301,18 @@ def SortNIM(data_folder, output_folder = None, **kwargs):
      
     from tqdm import tqdm
     import re
-        
-    
+
     makedir(output_folder)
     
     warnings.filterwarnings("ignore", category=UserWarning)
     
     for root, dirs, files in tqdm(os.walk(data_folder, topdown=True), total = dircounter(data_folder), unit = 'dirs', desc = 'Searching directories'):
         for file in files:
-    
-            if file.endswith("posZ0.tif"): #Find all image files in folder
+
+            if file.endswith(".tif"): #Find all image files in folder
                 file_delim = file.split('_') #Split filename to find metadata
-                
-    
-                img = skimage.io.imread(os.path.join(root,file)) #Load image
-                
-                assert img.shape == (sz, sx, sy), 'Images not of usual dimension'
-                
-                img = numpy.mean(img, axis = 0) #Average frames
-                assert img.shape == (sx,sy), 'Images averaged wrongly'
-                
-                if NIM == True:
-                    img = img[:,0:int(sy/int(2))] #Crop FoV to remove unused half
-                    assert img.shape ==(sx,int(sy/2)), 'Images cropped incorrectly'
-               
-                img = im_2_uint16(img) #Convert to uint16
+
+                matched = False
                 
                 for condition_ID in cond_IDs: #Iterate over expected conditions and save files
                     
@@ -319,10 +331,50 @@ def SortNIM(data_folder, output_folder = None, **kwargs):
 
                                                                             
                                 filename = [file_delim[part]+'_' for part in range(0,7,1)]  #Assemble filename
-                                filename = ''.join(filename) + '.tiff'
-                        
+                                filename = ''.join(filename) + '.tif'
+
+                                #Load and modify image appropriately
+                                img = skimage.io.imread(os.path.join(root, file))  # Load image
+
+                                try:
+                                    assert img.shape == (sz, sx, sy), 'Images not of usual dimension'
+                                except AssertionError:
+                                    print(os.path.join(root, file))
+
+                                img = numpy.mean(img, axis=0)  # Average frames
+                                try:
+                                    assert img.shape == (sx, sy), 'Images averaged wrongly'
+                                except AssertionError:
+                                    print(os.path.join(root, file))
+
+
+                                if NIM == True:
+
+                                    crop = crop_mapping[channel]
+                                    if crop == 0:
+                                        img = img[:, 0:int(sy / int(2))]  # Crop FoV to remove unused half
+                                        assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+                                    elif crop == 1:
+                                        img = img[:, int(sy / int(2)):]  # Crop FoV to remove unused half
+                                        assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+
+                                img = im_2_uint16(img)  # Convert to uint16
+
+                                #Save
                                 skimage.io.imsave(os.path.join(savefolder,filename),img) #Write image to appropriate sub folder
-                        
+                                matched = True
+
+                        if matched is False and queue is not None:
+                            #print('Match failed')
+                            queue.put('Tag match failed')
+                        if matched is True and queue is not None:
+                            #print('Match success')
+                            queue.put('Tag match success')
+            else:
+
+                if queue is not None:
+                    queue.put('Not a tif')
+
     return output_folder
                         
 
@@ -330,7 +382,9 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
     
     cond_IDs = kwargs.get('cond_IDs', False)
     image_channels = kwargs.get('image_channels', False)
-    
+    queue = kwargs.get('comms_queue',None)
+
+
     if not all([data_folder,cond_IDs, image_channels]): #Verify input
         raise TypeError
 
@@ -356,7 +410,9 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
 
         channel_paths = [os.path.join(folder,channel) for channel in image_channels]
 
-
+        no_matches_count = 0
+        partial_match_count = 0
+        registration_fail_count = 0
         success_counter = 0
         total = 0
 
@@ -411,6 +467,8 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
 
                 if matches == len(channel_paths)-1: #Fully matched images only. Matches are one less than total channel number
 
+                    #Add unique hash to prefix to uniquely identify file
+
                     filename = prefix + '_combined_' + str(dataset_tag[0]) + '_' +str(cond_ID)+'_' + FOV + '.tif'  # Assemble filename
 
                     if registration_target is not None:
@@ -425,8 +483,12 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
 
                             channel = combined_image[ch,:,:]
 
-                            (tx,ty), error, diffphase = skimage.feature.register_translation(target_channel, channel, upsample_factor=10) #Calculate pixel offset
-                            shifted_channel = scipy.ndimage.shift(channel,(tx,ty))
+                            try:
+                                (tx,ty), error, diffphase = skimage.feature.register_translation(target_channel, channel, upsample_factor=10) #Calculate pixel offset
+                                shifted_channel = scipy.ndimage.shift(channel,(tx,ty))
+                            except Exception:
+                                registration_fail_count += 1
+                                break
 
                             combined_image[ch,:,:] = shifted_channel #Save shifted channel
 
@@ -437,6 +499,21 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
 
                     success_counter = success_counter + 1
 
+                    #Put result in queue if available
+                    if queue is not None:
+                        queue.put('success')
+
+                elif matches == 0:
+                    no_matches_count += 1
+
+                    if queue is not None:
+                        queue.put('no matches')
+
+                else:
+                    partial_match_count += 1
+
+                    if queue is not None:
+                        queue.put('partial match')
 
             success_counter_store.append(success_counter)
             total_store.append(total)
@@ -450,7 +527,7 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
     sys.stdout.flush()
     
     
-    return output_folder
+    return output_folder, [no_matches_count, partial_match_count, registration_fail_count]
 
 
 def BatchProcessor(data_folder,operation, op, **kwargs):

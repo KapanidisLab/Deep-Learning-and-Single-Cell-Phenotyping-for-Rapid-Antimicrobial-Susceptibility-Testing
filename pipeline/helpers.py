@@ -177,13 +177,12 @@ def class_id_to_name(dataset, ID):
     raise ValueError('ID not found in dataset.')
 
 
-def compute_pixel_metrics(dataset, image_ids, model):  # Custom function.
+def compute_pixel_metrics(dataset, image_ids, results):  # Custom function.
 
     print('Class ID and class name mappings...\n')
     print(dataset.class_info)
     print('')
 
-    dataset.class_ids
     print('Pixelwise stats per image in test set...\n')
 
     gt_accumulator = np.asarray([], dtype='int')  # 1D arrays to store all pixels classifications throughout whole dataset
@@ -191,11 +190,7 @@ def compute_pixel_metrics(dataset, image_ids, model):  # Custom function.
 
     for image_id in image_ids:
 
-        image = dataset.load_image(image_id)
         gt_mask, gt_class_id = dataset.load_mask(image_id)
-
-        results = model.detect([image], verbose=0)
-
 
         (x, y, _) = gt_mask.shape  # extract shape
         gt_composite = np.zeros((x, y))

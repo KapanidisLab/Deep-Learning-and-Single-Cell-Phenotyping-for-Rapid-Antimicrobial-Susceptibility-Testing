@@ -87,8 +87,9 @@ class ProcessingPipeline:
         print('Executing Collect:',str(instrument))
         print('-------------------------')
 
-        self.path = collector(self.path,**kwargs) #call and and update path
+        self.path, stats = collector(self.path,**kwargs) #call and and update path
         self.collected = True #Set status flag
+        return stats
 
     def FileOp(self, op, **kwargs):
 
@@ -119,53 +120,55 @@ class ProcessingPipeline:
     
     
 if __name__ == '__main__':
-    '''
+
     import os
+
     data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20')
-    
-    cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-    image_channels = ['NR','NR','NR']
-    img_dims = (684,840,30)
-    
+    #output = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20_Segregated_Multichannel')
+
+    #cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
+    #image_channels = ['NR','DAPI']
+    #img_dims = (684,840,30)
+
     pipeline = ProcessingPipeline(data_folder, 'NIM')
-    pipeline.Sort(cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels)
-    pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels)
+    #pipeline.Sort(cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0},output_folder=output)
+    #pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = os.path.join(output,'Collected'))
+
 
 
     #--- GENERATE MASKS FROM SEGMENTATION FILE---
+    '''
+    input_path_WT = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'RIF+ETOH')
 
-    input_path_WT = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'WT+ETOH')
-    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'CIP+ETOH')
-    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Phenotype detection_18_08_20', 'Segmentations', 'RIF+ETOH')
-
-    pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size = (684,420))
+    pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size=(684, 420))
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path= input_path_CIP, image_size=(684, 420))
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path= input_path_RIF, image_size=(684, 420))
 
     #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
     annots_WT = os.path.join(input_path_WT, 'annots')
-    files_WT = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20', 'Segregated', 'Combined', 'WT+ETOH')
+    files_WT = os.path.join(get_parent_path(1),'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'WT+ETOH')
 
     annots_CIP = os.path.join(input_path_CIP, 'annots')
-    files_CIP = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined', 'CIP+ETOH')
+    files_CIP = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'CIP+ETOH')
 
     annots_RIF = os.path.join(input_path_RIF, 'annots')
-    files_RIF = os.path.join(get_parent_path(1), 'Data', 'Phenotype detection_18_08_20', 'Segregated', 'Combined','RIF+ETOH')
+    files_RIF = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'RIF+ETOH')
 
-    output = os.path.join(get_parent_path(1),'Data', 'Dataset1_15_01_2021')
+    output = os.path.join(get_parent_path(1),'Data', 'Dataset_Train1+3_14_08_2021')
 
-    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0.3, validation_size=0.1, seed = 42 )
-
+    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0.05, validation_size=0.2, seed = 42 )
     '''
     #---TRAIN 1ST STAGE MODEL---
 
-    weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
-    train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Train')
-    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Validation')
-    output_dir = get_parent_path(1)
+    #weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
+    #train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train1+3_14_08_2021', 'Train')
+    #val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train1+3_14_08_2021', 'Validation')
+    #output_dir = get_parent_path(1)
 
     configuration = BacConfig()
-    configuration.NAME = 'PredConfig_membrane_fluor'
+    configuration.NAME = 'PredConfig_1+3'
 
     import imgaug.augmenters as iaa  # import augmentation library
 
@@ -187,23 +190,24 @@ if __name__ == '__main__':
 
     # --- TRAIN 1st STAGE SEGMENTER
 
-    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
     # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
 
-    # inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
-    # optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
-    # optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
+    #inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
+    #optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
+    #optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
     #inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )
 
 #---------------------------------------------------------------------------------------------------------------------------------
 
 
-    test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021', 'Test')
-    weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
+    
+    #test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_repeats_19_06_2021', 'Test')
+    weights = os.path.join(get_parent_path(1), "predconfig_1+320211008T1645", "mask_rcnn_predconfig_1+3.h5")
 
-    #output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
-
+    output_struct = predict_mrcnn_segmenter(source = test_dir, mode = 'dataset', config = configuration, weights = weights)
+    
     #---PREPARE DATASET WITH BOTH CHANNELS
 
     multichannel_folder = os.path.join(get_parent_path(1), data_folder, 'multichannel')
@@ -215,7 +219,7 @@ if __name__ == '__main__':
 
     #---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS, SPLIT AND SAVE
 
-    manual_struct = struct_from_file(dataset_folder=os.path.join(get_parent_path(1), 'Data', 'Dataset1_15_01_2021'),
+    manual_struct = struct_from_file(dataset_folder=os.path.join(get_parent_path(1), 'Data', 'Dataset_Train1+3_14_08_2021'),
                                      class_id=1)
 
     cells = cells_from_struct(input=manual_struct, cond_IDs=cond_IDs, image_dir=pipeline_cells.path, mode='masks')
@@ -232,12 +236,12 @@ if __name__ == '__main__':
     #---PREDICT---
     modelname = 'ResNet50_BS_64_LR_0001_opt_NAdam'
     path = os.path.join(logdir, modelname+'.h5' )
-    mean = np.asarray([0.1715,0.1073,0])
+    mean = np.asarray([0,0,0])
 
     inspect(modelpath=path, X_test=X_test, y_test=y_test, mean=mean, resize_target=resize_target,class_id_to_name=cells['class_id_to_name'])
 
 
-
+    '''
 
 
     

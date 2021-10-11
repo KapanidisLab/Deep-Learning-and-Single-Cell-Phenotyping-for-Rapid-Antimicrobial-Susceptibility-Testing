@@ -402,7 +402,7 @@ def inspect_mrcnn_segmenter(ids = None, **kwargs):
                 iou_threshold=0, score_threshold=0, ax=get_ax(), title = title)
             plt.show()
 
-            compute_pixel_metrics(test_set, [image_id], model)  # Compute pixel confusion mats
+            compute_pixel_metrics(test_set, [image_id], results)  # Compute pixel confusion mats
 
         print('AP:0.5-0.9 per image average: ' + str( np.around(mAPs,2)))
 
