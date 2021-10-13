@@ -7,11 +7,14 @@ Created on Sun Apr 26 17:17:28 2020
 
 from helpers import *
 import fnmatch,distutils
-from tqdm import tqdm
 import sklearn.model_selection
 import distutils.dir_util
-import os
 
+import os, skimage.io, warnings, numpy
+from tqdm import tqdm
+import re
+import sys
+import scipy.ndimage
 
 def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for image-wise operation to fit with Parallel
     import skimage.io, os
@@ -99,10 +102,14 @@ def TrainTestVal_split(data_sources=None, annotation_sources=None, output_folder
                     img = os.path.join(data_folder,image)
                     matches.append([folder_path,img])
 
+
     #First split into train+val and test
     if test_size == 0:  #In the degenerate case, don't split
         Train_Val = matches
         Test = []
+    elif test_size == 1.0: #Other degenerate case
+        Test = matches
+        Train_Val = []
     else:
         Train_Val,Test = sklearn.model_selection.train_test_split(matches, test_size = test_size, shuffle=True, random_state=seed)
 
@@ -248,6 +255,91 @@ def Equalize_Channels(**kwargs):
 
 
 
+def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None, cond_IDs=None, image_channels=None, queue=None):
+    ''' 
+    Sorts through NIM default file structure and sorts files into subfolders based on idetifiers. 
+    
+    Version 2 with updated naming convention format.
+    
+    YYMMDD_ID_PROTOCOLCODE_amr_USERID_CELLID_CONDITIONID_ALLCHANNELS_CHANNELNAME+SERIES_POSITIONID_channels_t0_ZSLICEID
+    '''
+
+    assert len(img_dims) == 3, 'img_dims must have exactly 3 values'
+
+    image_channels = list(set(image_channels))  # Extract unique channels
+
+    if output_folder is None: #Default output path if none provided
+        output_folder = os.path.join(data_folder,'Segregated')
+    else:
+        assert type(output_folder) == str
+
+    (sz,sx,sy) = img_dims
+
+    makedir(output_folder)
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    for root, dirs, files in tqdm(os.walk(data_folder, topdown=True), total=dircounter(data_folder), unit='dirs',
+                                  desc='Searching directories'):
+        for file in files:
+
+            if file.endswith(".tif"):  # Find all image files in folder
+                file_delim = file.split('_')  # Split filename to find metadata
+
+                matched = False
+
+                #Extract metadata from filename
+                [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+
+                for condition_ID in cond_IDs:  # Iterate over expected conditions and save files
+
+                    if file_CONDID == condition_ID: #If found expected condition ID, make subfolder
+                        savefolder = os.path.join(output_folder, condition_ID)  # Append cond_ID
+                        makedir(savefolder)
+
+                        #Iterate over all expected image channels
+                        for channel in image_channels:
+                            pattern = re.compile(channel)
+
+                            if re.search(pattern,file_CHANNEL_SERIES): #If correctly identified, make subfolder
+                                savefolder = os.path.join(savefolder,
+                                                          channel)  # Create save directory for each matched channel
+                                makedir(savefolder)
+
+                                #If correctly identified, read, crop image, make composition filename
+                                img = skimage.io.imread(os.path.join(root, file))  # Load image
+
+                                if img.shape != img_dims:
+                                    raise RuntimeError('ERROR - Image {} dimensions inconsistent with specification.'.format(os.path.join(root, file)))
+
+                                img = numpy.mean(img, axis=0)  # Average frames
+
+                                crop = crop_mapping[channel]
+                                if crop == 0:
+                                    img = img[:, 0:int(sy / int(2))]  # Crop FoV to remove unused half - keep left side
+                                    assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+                                elif crop == 1:
+                                    img = img[:, int(sy / int(2)):]  # Crop FoV to remove unused half - keep right side
+                                    assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+
+                                skimage.io.imsave(os.path.join(savefolder, file),
+                                                  img)  # Write image to appropriate sub folder
+                                matched = True
+
+                        if matched is False and queue is not None:
+                            # print('Match failed')
+                            queue.put('Tag match failed')
+                        if matched is True and queue is not None:
+                            # print('Match success')
+                            queue.put('Tag match success')
+            else:
+
+                if queue is not None:
+                    queue.put('Not a tif')
+
+    return output_folder
+
+
+
 
 def SortNIM(data_folder, output_folder = None, crop_mapping=None, **kwargs):
     
@@ -377,6 +469,155 @@ def SortNIM(data_folder, output_folder = None, crop_mapping=None, **kwargs):
 
     return output_folder
                         
+def CollectNIM2(data_folder, output_folder = None, registration_target = None, cond_IDs = None, image_channels=None, queue=None):
+
+    '''
+    Takes sorted files by SortNIM and collects different channels by channel type, date, experiment ID, user into
+    composite fields of view. Optionally register images to selected channel.
+    '''
+
+    if output_folder is None:
+        output_folder = os.path.join(data_folder,'Combined')
+    else:
+        assert type(output_folder) == str
+
+    makedir(output_folder)
+
+    success_counter_store = []
+    total_store = []
+
+    for cond_ID in cond_IDs:
+        folder = os.path.join(data_folder, cond_ID)
+
+        output_folder_cond = os.path.join(output_folder, cond_ID)
+        makedir(output_folder_cond)
+
+        channel_paths = [os.path.join(folder, channel) for channel in image_channels]
+
+        no_matches_count = 0
+        partial_match_count = 0
+        registration_fail_count = 0
+        success_counter = 0
+        total = 0
+
+        # use first channel to build comparison scaffold
+        for root, dirs, files in os.walk(channel_paths[0]): #use first channel to build comparison scaffold
+            for file in tqdm(files, desc= cond_ID, total = filecounter(channel_paths[0])):
+
+                file_delim = file.split('_')  # Split filename to find metadata
+
+                #Extract metadata from filename
+                [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+
+                #Skip if we're not matching the experimental condition
+                if file_CONDID != cond_ID:
+                    continue  # Continue to next file if conditions do not match
+
+                #Extract series counter
+                dataset_tag = [int(s) for s in list(file_CHANNEL_SERIES) if s.isdigit()]  # Extract dataset tag from channel info
+                if len(dataset_tag) != 1:
+                    raise RuntimeError('ERROR - badly formatted series identifier in file path {}'. format(os.path.join(channel_paths[0],file)))
+
+                #Load image to match, initialise output image
+                image = skimage.io.imread(os.path.join(root, file)) #Load image to match
+                (sx, sy) = image.shape #
+                combined_image = numpy.zeros((3,sx,sy),dtype = 'uint16') #Initialize combined images of (c,x,y) format, where c is the number of channels to match
+                combined_image[0,:,:] = im_2_uint16(image) #Populate first channel
+
+                matches = 0
+                total = total + 1
+
+                #Iterate over remaining channels to match to image
+                for i in range(1,len(channel_paths),1): #Iterate over remaining channels to match the image
+                    for root2, dirs2, files2 in os.walk(channel_paths[i]): #examine other channels
+
+                        for file2 in files2:
+                            file2_delim = file2.split('_')
+
+                            [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2, file_ALLCHANNELS_2, file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2] = file2_delim
+
+                            dataset_tag_2 = [int(s) for s in list(file_CHANNEL_SERIES_2) if s.isdigit()] #Extract dataset tag from channel info
+                            if len(dataset_tag_2) != 1:
+                                raise RuntimeError('ERROR - badly formatted series identifier in file path {}'.format(
+                                    os.path.join(channel_paths[0], file)))
+
+                            #Match based on conditions
+
+                            if file_DATE_2 == file_DATE and file_EXPID == file_EXPID_2 and file_USER == file_USER_2 and file_CELLTYPE == file_CELLTYPE_2 and file_CONDID == file_CONDID_2 and file_POSITION_ID == file_POSITION_ID_2 and file_PROTOCOLID == file_PROTOCOLID_2 and dataset_tag == dataset_tag_2:
+
+                                image2 = skimage.io.imread(os.path.join(root2, file2))
+                                assert image2.shape == image.shape  # All images must be the same size
+
+                                combined_image[i,:,:] = im_2_uint16(image2) #Populate remaining channels
+                                if len(channel_paths) != 1:
+                                    matches = matches + 1 #Keep track of matched channels
+
+                if matches == len(
+                        channel_paths) - 1:  # Fully matched images only. Matches are one less than total channel number
+
+                    filename = file_DATE + '_' +file_EXPID  + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
+                        cond_ID) + '_' + file_POSITION_ID + '.tif'  # Assemble filename
+
+
+                    #If registration requested, register images
+                    if registration_target is not None:
+                        assert registration_target <= len(image_channels), 'Registration target channel index must be less or equal to the channel count'
+
+                        target_channel = combined_image[registration_target,:,:]
+
+                        for ch in range(0,len(image_channels),1):
+
+                            if ch == registration_target:
+                                continue #Do not register target channel to itself
+
+                            channel = combined_image[ch,:,:]
+
+                            try:
+                                (tx,ty), error, diffphase = skimage.feature.register_translation(target_channel, channel, upsample_factor=10) #Calculate pixel offset
+                                shifted_channel = scipy.ndimage.shift(channel,(tx,ty))
+                            except Exception:
+                                registration_fail_count += 1
+                                break
+
+                            combined_image[ch,:,:] = shifted_channel #Save shifted channel
+
+                    #Save combined image
+                    savepath = os.path.join(output_folder_cond, filename)
+
+                    skimage.io.imsave(savepath, combined_image, check_contrast=False)  # Write to file
+
+                    success_counter = success_counter + 1
+
+
+                    # Put result in queue if available
+                    if queue is not None:
+                        queue.put('success')
+
+                elif matches == 0:
+                    no_matches_count += 1
+
+                    if queue is not None:
+                        queue.put('no matches')
+
+                else:
+                    partial_match_count += 1
+
+                    if queue is not None:
+                        queue.put('partial match')
+
+            success_counter_store.append(success_counter)
+            total_store.append(total)
+
+            # At the end, print a summary
+
+    sys.stdout.flush()
+    print('')
+    for count, elem in enumerate(success_counter_store):
+        print(cond_IDs[count], ' : ', elem, '/', total_store[count], ' matched successfully')
+    sys.stdout.flush()
+
+    return output_folder, [no_matches_count, partial_match_count, registration_fail_count]
+
 
 def CollectNIM(data_folder, output_folder = None, registration_target = None, **kwargs):
     
@@ -422,6 +663,8 @@ def CollectNIM(data_folder, output_folder = None, registration_target = None, **
                 
                 
                 file_delim = file.split('_')
+
+
                 prefix = file_delim[0]
                 condition = file_delim[1]
                 channel = file_delim[3]

@@ -53,8 +53,8 @@ class ProcessingPipeline:
 
 
         #Use a 2 tuple as a key.
-        self._Factory.register_implementation(('sorter','NIM'), SortNIM)
-        self._Factory.register_implementation(('collector','NIM'), CollectNIM)
+        self._Factory.register_implementation(('sorter','NIM'), SortNIM2)
+        self._Factory.register_implementation(('collector','NIM'), CollectNIM2)
 
         self._Factory.register_implementation(('fileoperation','TrainTestVal_split'), TrainTestVal_split)
         self._Factory.register_implementation(('fileoperation', 'masks_from_VOTT'), masks_from_VOTT)
@@ -123,49 +123,83 @@ if __name__ == '__main__':
 
     import os
 
-    data_folder = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20')
-    #output = os.path.join(get_parent_path(1),'Data','Phenotype detection_18_08_20_Segregated_Multichannel')
+    data_folder_train = os.path.join(get_parent_path(1),'Data','Train_0+3')
+    output_segregated_train = os.path.join(get_parent_path(1),'Data','Train_0+3_singlechannel_segregated')
+    output_collected_train = os.path.join(get_parent_path(1),'Data','Train_0+3_singlechannel_collected')
 
-    #cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-    #image_channels = ['NR','DAPI']
-    #img_dims = (684,840,30)
-
-    pipeline = ProcessingPipeline(data_folder, 'NIM')
-    #pipeline.Sort(cond_IDs = cond_IDs, dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0},output_folder=output)
-    #pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = os.path.join(output,'Collected'))
+    data_folder_test = os.path.join(get_parent_path(1),'Data','Test_4')
+    output_segregated_test = os.path.join(get_parent_path(1),'Data','Test_4_singlechannel_segregated')
+    output_collected_test = os.path.join(get_parent_path(1),'Data','Test_4_singlechannel_collected')
 
 
+    cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
+    image_channels = ['NR','NR','NR']
+    img_dims = (30,684,840)
 
+    pipeline = ProcessingPipeline(data_folder_train, 'NIM')
+    pipeline.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0}, output_folder=output_segregated_train)
+    pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_train, registration_target=None)
+
+    pipeline2 = ProcessingPipeline(data_folder_test,'NIM')
+    pipeline2.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0}, output_folder=output_segregated_test)
+    pipeline2.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_test, registration_target=None)
     #--- GENERATE MASKS FROM SEGMENTATION FILE---
-    '''
-    input_path_WT = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'WT+ETOH')
-    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'CIP+ETOH')
-    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3', 'Segmentations', 'RIF+ETOH')
+
+    input_path_WT = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'RIF+ETOH')
 
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size=(684, 420))
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path= input_path_CIP, image_size=(684, 420))
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path= input_path_RIF, image_size=(684, 420))
 
+
+
     #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
     annots_WT = os.path.join(input_path_WT, 'annots')
-    files_WT = os.path.join(get_parent_path(1),'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'WT+ETOH')
+    files_WT = os.path.join(output_collected_train,'WT+ETOH')
 
     annots_CIP = os.path.join(input_path_CIP, 'annots')
-    files_CIP = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'CIP+ETOH')
+    files_CIP = os.path.join(output_collected_train,'CIP+ETOH')
 
     annots_RIF = os.path.join(input_path_RIF, 'annots')
-    files_RIF = os.path.join(get_parent_path(1), 'Data','Phenotypes_Train1+3','1st_Stage_Collected', 'RIF+ETOH')
+    files_RIF = os.path.join(output_collected_train,'RIF+ETOH')
 
-    output = os.path.join(get_parent_path(1),'Data', 'Dataset_Train1+3_14_08_2021')
+    output = os.path.join(get_parent_path(1),'Data', 'Dataset_Train0+3')
 
-    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0.05, validation_size=0.2, seed = 42 )
-    '''
+    pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0, validation_size=0.2, seed = 42 )
+
+    input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'RIF+ETOH')
+
+    pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path=input_path_WT, image_size=(684, 420))
+    pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path=input_path_CIP, image_size=(684, 420))
+    pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path=input_path_RIF, image_size=(684, 420))
+
+    # --- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
+    annots_WT = os.path.join(input_path_WT, 'annots')
+    files_WT = os.path.join(output_collected_test, 'WT+ETOH')
+
+    annots_CIP = os.path.join(input_path_CIP, 'annots')
+    files_CIP = os.path.join(output_collected_test, 'CIP+ETOH')
+
+    annots_RIF = os.path.join(input_path_RIF, 'annots')
+    files_RIF = os.path.join(output_collected_test, 'RIF+ETOH')
+
+    output = os.path.join(get_parent_path(1), 'Data', 'Dataset_Test4')
+
+    pipeline.FileOp('TrainTestVal_split', data_sources=[files_WT, files_CIP, files_RIF],
+                    annotation_sources=[annots_WT, annots_CIP, annots_RIF], output_folder=output, test_size=1.0,
+                    validation_size=0, seed=42)
+
     #---TRAIN 1ST STAGE MODEL---
 
-    #weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
-    #train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train1+3_14_08_2021', 'Train')
-    #val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train1+3_14_08_2021', 'Validation')
-    #output_dir = get_parent_path(1)
+    weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
+    train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train0+3', 'Train')
+    val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train0+3', 'Validation')
+    test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Test4', 'Test')
+    output_dir = get_parent_path(1)
 
     configuration = BacConfig()
     configuration.NAME = 'PredConfig_1+3'
@@ -185,12 +219,12 @@ if __name__ == '__main__':
 
     # --- INSPECT TRAIN DATASET AND AUGMENTATION---
 
-    #inspect_dataset(dataset_folder = train_dir)
-    #inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
+    inspect_dataset(dataset_folder = train_dir)
+    inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
 
     # --- TRAIN 1st STAGE SEGMENTER
 
-    #train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+    train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
     # --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
 
@@ -201,7 +235,7 @@ if __name__ == '__main__':
 
 #---------------------------------------------------------------------------------------------------------------------------------
 
-
+    '''
     
     #test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_repeats_19_06_2021', 'Test')
     weights = os.path.join(get_parent_path(1), "predconfig_1+320211008T1645", "mask_rcnn_predconfig_1+3.h5")
