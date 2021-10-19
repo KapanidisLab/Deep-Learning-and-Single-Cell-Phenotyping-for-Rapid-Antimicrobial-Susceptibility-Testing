@@ -15,13 +15,13 @@ if __name__ == '__main__':
     from helpers import *
     import os
 
-    def plot_detections(segmentations=None,classifications=None,images=None, mappings=None, show_caption=True):
+    def plot_detections(segmentations=None,classifications=None,images=None, mappings=None, show_caption=True, title=''):
 
         assert len(segmentations) == len(classifications)
 
         for i,seg in enumerate(segmentations):
 
-            _, ax = plt.subplots(1,2, figsize=(16,16))
+            fig, ax = plt.subplots(1,2, figsize=(16,16))
             boxes = seg['rois']
             scores = seg['scores']
             masks = seg['masks']
@@ -61,12 +61,14 @@ if __name__ == '__main__':
                 ax[1].imshow(image)
                 ax[0].imshow(rgb2gray(image),cmap=plt.cm.gray)
 
+            plt.title(str(title),fontsize=22)
             plt.show()
 
     #Paths
-    image_path = os.path.join(get_parent_path(1),'Data', 'Phenotype detection_18_08_20', 'multichannel', 'Combined', 'RIF+ETOH', 'AMR_combined_6_RIF+ETOH_posXY9.tif')
-    segmenter_weights = os.path.join(get_parent_path(1), "jan21_01_21_v1.0_decreased_anx20210121T2129", "mask_rcnn_jan21_01_21_v1.0_decreased_anx.h5")
-    classifier_weights = os.path.join(get_parent_path(1),'Second_Stage_2','DenseNet121_BS_16_LR_00005_opt_NAdam.h5')
+    filename = "210403_1_AMR_combined_3_CIP+ETOH_posXY0.tif"
+    image_path = os.path.join(get_parent_path(1), "Data" , "Test_4_multichannel_collected", "CIP+ETOH", filename)
+    segmenter_weights = os.path.join(get_parent_path(1), "predconfig_1+320211013T2353","mask_rcnn_predconfig_1+3.h5")
+    classifier_weights = os.path.join(get_parent_path(1),"predconfig_1+320211013T2353","DenseNet121 BS 16, LR 0.0005, epochs 100, opt NAdam.h5")
 
     #Mappings from training set
     map_WT = {'colour': 'orangered', 'name': 'WT'}
@@ -95,7 +97,7 @@ if __name__ == '__main__':
     #Create and run classifier
     cells = apply_rois_to_image(input=segmentations, mode='masks', images=img)
 
-    mean = np.asarray([0.1715, 0.1073, 0])
+    mean = np.asarray([0, 0, 0])
     resize_target = (64,64,3)
 
     #Go through all images
@@ -105,4 +107,4 @@ if __name__ == '__main__':
         classifications.append(prediction)
 
     #Show results
-    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=img, show_caption=True)
+    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=img, show_caption=True, title=filename)

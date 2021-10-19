@@ -291,14 +291,14 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
             elif mode == 'images':
                 image = source[i,:,:,:]
-
+                image_id = i
                 filenames = kwargs.get('filenames', None) #Optional parameter if in images mode
                 filename = filenames[i]
 
             results = model.detect(np.expand_dims(image, 0), verbose=0)[0] #Run detection routine
 
             results['filename'] = filename #Store filename, or none
-
+            results['image_id'] = image_id
             output.append(results) #Store
 
     return output
@@ -478,7 +478,7 @@ def inspect_dataset(**kwargs):
     ax[2].set_ylabel('Pixels Height')
     _ = ax[2].hist2d(image_shape[:, 1], image_shape[:, 0], bins=10, cmap="Blues")
 
-    fig.subplots_adjust(top=0.65)
+    #fig.subplots_adjust(top=0.65)
 
     plt.show()
 
@@ -509,7 +509,7 @@ def inspect_dataset(**kwargs):
         ax[i].set_ylabel('Freq Den')
         _ = ax[i].hist(objects_per_image, bins=10)
 
-    fig.subplots_adjust(top=0.65)
+    #fig.subplots_adjust(top=0.65)
     plt.show()
 
     # Object size stats
@@ -551,7 +551,7 @@ def inspect_dataset(**kwargs):
         except IndexError as error:
             print("\nImage Area <= {:.0f}**2".format(np.sqrt(image_area)), '- No Objects Found!')
 
-    fig.subplots_adjust(top=0.65)
+    #fig.subplots_adjust(top=0.65)
     plt.show()
 
 def inspect_augmentation(**kwargs):
@@ -1060,10 +1060,8 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
 
         # Plot
 
-        fig, axs = plt.subplots(2, 1)
+        fig, axs = plt.subplots(2, 1, constrained_layout=True)
         fig.suptitle('Precision-Recall curve: COCO 2017 standard', y=1.05)
-        fig.tight_layout()
-        fig.subplots_adjust(top=0.65)
 
         axs[0].set_title('Precision-Recall: IOU@0.5, 0.75, 0.9')
         axs[0].plot(recThresholds, pr_50, color='blue')

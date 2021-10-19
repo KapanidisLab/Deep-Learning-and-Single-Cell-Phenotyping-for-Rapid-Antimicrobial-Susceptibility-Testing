@@ -2,6 +2,7 @@ import numpy as np
 import os
 import sys
 
+import tensorflow
 
 from helpers import *
 
@@ -255,7 +256,22 @@ def split_cell_sets(input=None, **kwargs):
         total_cells.extend(cells)
         total_ids.extend(ids)
 
-    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(total_cells, total_ids, stratify = total_ids, test_size = kwargs.get('test_size', False), random_state = kwargs.get('random_state',False))
+    test_size = kwargs.get('test_size', False)
+    if test_size == 0:
+        X_train = total_cells
+        y_train = total_ids
+
+        X_test = []
+        y_test = []
+    elif test_size == 1.0:
+        X_test = total_cells
+        y_test = total_ids
+
+        X_train = []
+        y_train = []
+    else:
+
+        X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(total_cells, total_ids, stratify = total_ids, test_size = test_size, random_state = kwargs.get('random_state',False))
 
     #Print information
 
@@ -379,7 +395,7 @@ def define_model(mode = None, resize_target=None, class_count=None, initial_lr=N
     return model
 
 
-def train(mode = None, X_train = None, y_train = None, resize_target = None, class_count = None, logdir = None, **kwargs):
+def train(mode = None, X_train = None, y_train = None, resize_target = None, class_count = None, logdir = None,verbose=False, **kwargs):
     '''
     Trains vgg16 standard keras implementation on cells_object. Loads entire dataset into RAM by default for easier
     preprocessing (Change this is dataset size becomes too big). Random weight init.
@@ -407,30 +423,33 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
 
     n = [0,50,100,150,200,250]
 
-    inspect_model_data(X_train, y_train, n)
+    if verbose:
+        inspect_model_data(X_train, y_train, n)
 
     X_train = [resize(img, resize_target) for img in X_train]
     X_train = np.asarray(X_train) #Cast between 0-1, resize
     y_train = to_categorical(y_train)
 
-    inspect_model_data(X_train, y_train, n)
+    if verbose:
+        inspect_model_data(X_train, y_train, n)
 
 
     #Generator class. Compute pre-processing sttistics. Can also specify on the fly augmentation.
-    validation_split = 0.1
+    validation_split = 0.2
 
     datagen = ImageDataGenerator(featurewise_center=False, featurewise_std_normalization=False, fill_mode='constant',
                                  cval=0, validation_split=validation_split, data_format='channels_last',
                                  horizontal_flip=True, vertical_flip=True, rotation_range=180,
                                  width_shift_range = 0.2, height_shift_range=0.2
-                                 ) #10% validation split
+                                 ) #20% validation split
     datagen.fit(X_train)
 
     #Create iterators
     train_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='training')
     val_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='validation')
 
-    inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
+    if verbose:
+        inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
 
     #Savefile name
 
@@ -490,7 +509,7 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
 
         kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'batch_size': batch_size,
                   'learning_rate': learning_rate, 'epochs': epochs, 'resize_target': resize_target,
-                  'class_count': class_count, 'logdir': logdir_run, 'optimizer': optimizer, 'dt_string': dt_string}
+                  'class_count': class_count, 'logdir': logdir_run, 'optimizer': optimizer, 'dt_string': dt_string, 'verbose':False}
 
         p = multiprocessing.Process(target=train, kwargs=kwargs)
         p.start()
@@ -521,22 +540,27 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=N
     plt.show()
 
 def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
+    import multiprocessing
+    from keras import backend as K
+
     #Work on unannotated files
 
     from keras.models import load_model
     from skimage.transform import resize
 
-    #Load model
+
+    #Evaluate
+
+    # Load model
     model = load_model(modelpath)
 
-    #Load and pre-process data
+    # Load and pre-process data
     X_test = [resize(img, resize_target) for img in X_test]
     X_test = np.asarray(X_test)  # Cast between 0-1, resize
 
-    #Subtract training mean
+    # Subtract training mean
     X_test = X_test - mean
 
-    #Evaluate
     result = model.predict(X_test)
     result = np.argmax(result,axis=1) #Decode from one-hot to integer
 
