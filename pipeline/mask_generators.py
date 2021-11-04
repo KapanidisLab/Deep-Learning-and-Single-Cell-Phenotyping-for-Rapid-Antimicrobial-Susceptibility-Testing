@@ -215,6 +215,82 @@ def masks_from_Cellpose(mask_path=None, output_path=None, global_image_size=None
     return os.path.join(output_path, 'annots')
 
 
+def masks_from_integer_encode(mask_path=None, output_path=None, global_image_size=None, image_dir=None):
+    '''
+    Locates composite masks stored as .tif files (integer encoded) and generates single cell masks in the output folder,
+    in the structure output_folder/annots/(image_name)/Cell1.bmp... Cell2.bmp....
+
+        Parameters
+    ----------
+    mask_path : string
+        path to directory with annotations
+    output_path : string
+        path to directory where the output data structure will be created.
+        Function creates a folder called annots. Inside annots, each subdir is a separate image, inside which are binary masks.
+    Returns
+    -------
+
+    '''
+
+    print('Reading integer encoded masks')
+    print()
+
+    used_masks = 0
+    image_total = 0
+
+    # Find all annotation files that end with .tif
+
+    for root, dirs, files in os.walk(mask_path, topdown=True):
+        for file in files:
+            if file.endswith('.tif'):
+
+                #Find all masks in file
+
+                img_filename = os.path.splitext(file)[0]
+
+                # Create folder with masks
+                makedir(os.path.join(output_path, 'annots', img_filename))
+
+                #Load annot file for image
+                loadpath = os.path.join(root,file)
+
+                masks = skimage.io.imread(loadpath)
+
+                #Extract individual cells
+                mask_idxs = np.unique(masks)
+
+                cellcount = 0
+
+                # Remove degenerate case - the zero
+                if 0 in mask_idxs:
+                    i = np.where(mask_idxs == 0)
+                    mask_idxs = np.delete(mask_idxs, i)
+
+                output = np.zeros((masks.shape[0], masks.shape[1], len(mask_idxs)))
+
+                # Decompact into strictly binary mask stack
+                for mask_idx in mask_idxs:
+                    singe_cell_mask = np.where(masks == mask_idx, 1, 0)
+
+                    filename = 'Cell' + str(cellcount) + '.bmp'  # Mask filename
+                    savepath = os.path.join(output_path, 'annots', img_filename,
+                                            filename)  # Assemble whole save path
+
+                    skimage.io.imsave(savepath, skimage.img_as_ubyte(single_cell_mask, check_contrast=False))
+
+                    cellcount += 1
+                    used_masks += 1
+
+                image_total += 1
+
+    print('Generated', ':', str(used_masks), 'masks out of', str(image_total), 'images.')
+    print('Generated {} masks from segmentation instances.'.format(used_masks))
+    print()
+
+    return os.path.join(output_path, 'annots')
+
+
+
 def masks_from_OUFTI(**kwargs):
 
     '''
@@ -315,5 +391,7 @@ def masks_from_OUFTI(**kwargs):
     print('cellList read errors:', error_count)
     print('Meshless cells found:', meshless_cell_count )
     sys.stdout.flush()
+
+    return os.path.join(output_path, 'annots')
 
 
