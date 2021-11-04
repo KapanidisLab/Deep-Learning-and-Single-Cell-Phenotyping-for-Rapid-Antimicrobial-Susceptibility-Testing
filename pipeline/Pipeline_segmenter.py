@@ -11,6 +11,7 @@ from classification import *
 
 from classification import *
 
+''''''
 
 data_folder_train = os.path.join(get_parent_path(1),'Data','Train_0+3')
 output_segregated_train = os.path.join(get_parent_path(1),'Data','Train_0+3_singlechannel_segregated')
@@ -21,8 +22,8 @@ output_segregated_test = os.path.join(get_parent_path(1),'Data','Test_4_singlech
 output_collected_test = os.path.join(get_parent_path(1),'Data','Test_4_singlechannel_collected')
 
 
-cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-image_channels = ['NR','NR','NR']
+cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH', 'KAN+ETOH', 'CARB+ETOH']
+image_channels = ['NR','DAPI']
 img_dims = (30,684,840)
 
 pipeline = ProcessingPipeline(data_folder_train, 'NIM')
@@ -32,6 +33,9 @@ pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_fo
 pipeline2 = ProcessingPipeline(data_folder_test,'NIM')
 pipeline2.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0}, output_folder=output_segregated_test)
 pipeline2.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_test, registration_target=None)
+
+'''
+
 #--- GENERATE MASKS FROM SEGMENTATION FILE---
 
 input_path_WT = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'WT+ETOH')

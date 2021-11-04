@@ -59,6 +59,7 @@ class ProcessingPipeline:
         self._Factory.register_implementation(('fileoperation','TrainTestVal_split'), TrainTestVal_split)
         self._Factory.register_implementation(('fileoperation', 'masks_from_VOTT'), masks_from_VOTT)
         self._Factory.register_implementation(('fileoperation', 'masks_from_OUFTI'), masks_from_OUFTI)
+        self._Factory.register_implementation(('fileoperation', 'masks_from_OUFTI'), masks_from_Cellpose)
         self._Factory.register_implementation(('fileoperation', 'Equalize_Channels'), Equalize_Channels)
 
         self._Factory.register_implementation(('operation','BatchProcessor'), BatchProcessor)
