@@ -1,4 +1,3 @@
-
 import os
 from ProcessingPipeline import ProcessingPipeline
 import os
@@ -13,38 +12,40 @@ from classification import *
 
 ''''''
 
-data_folder_train = os.path.join(get_parent_path(1),'Data','Train_0+3')
-output_segregated_train = os.path.join(get_parent_path(1),'Data','Train_0+3_singlechannel_segregated')
-output_collected_train = os.path.join(get_parent_path(1),'Data','Train_0+3_singlechannel_collected')
+data_folder_train = os.path.join(get_parent_path(1),'Data','Exp2','Train')
+output_segregated_train = os.path.join(get_parent_path(1),'Data','Exp2','Exp2_Train_Segregated')
+output_collected_train = os.path.join(get_parent_path(1),'Data','Exp2','Exp2_Train_Collected')
 
-data_folder_test = os.path.join(get_parent_path(1),'Data','Test_4')
-output_segregated_test = os.path.join(get_parent_path(1),'Data','Test_4_singlechannel_segregated')
-output_collected_test = os.path.join(get_parent_path(1),'Data','Test_4_singlechannel_collected')
+data_folder_test = os.path.join(get_parent_path(1),'Data','Exp2','Test')
+output_segregated_test = os.path.join(get_parent_path(1),'Data','Exp2','Exp2_Test_Segregated')
+output_collected_test = os.path.join(get_parent_path(1),'Data','Exp2','Exp2_Test_Collected')
 
 
-cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH', 'KAN+ETOH', 'CARB+ETOH']
-image_channels = ['NR','DAPI']
+cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
+image_channels = ['NR','NR','NR']
 img_dims = (30,684,840)
 
 pipeline = ProcessingPipeline(data_folder_train, 'NIM')
+
 pipeline.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0}, output_folder=output_segregated_train)
 pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_train, registration_target=None)
 
-'''
+
 pipeline2 = ProcessingPipeline(data_folder_test,'NIM')
+
 pipeline2.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0,'NR':0}, output_folder=output_segregated_test)
 pipeline2.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_test, registration_target=None)
-'''
+
 
 #--- GENERATE MASKS FROM SEGMENTATION FILE---
 
-input_path_WT = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'WT+ETOH')
-input_path_CIP = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'CIP+ETOH')
-input_path_RIF = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'RIF+ETOH')
+input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'WT+ETOH')
+input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'CIP+ETOH')
+input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'RIF+ETOH')
 
-pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size=(684, 420))
-pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path= input_path_CIP, image_size=(684, 420))
-pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path= input_path_RIF, image_size=(684, 420))
+pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_WT, output_path = input_path_WT)
+pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_CIP, output_path= input_path_CIP)
+pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_RIF, output_path= input_path_RIF)
 
 
 
@@ -58,17 +59,9 @@ files_CIP = os.path.join(output_collected_train,'CIP+ETOH')
 annots_RIF = os.path.join(input_path_RIF, 'annots')
 files_RIF = os.path.join(output_collected_train,'RIF+ETOH')
 
-output = os.path.join(get_parent_path(1),'Data', 'Dataset_Train0+3')
+output = os.path.join(get_parent_path(1),'Data', 'Dataset_Exp2_Train')
 
 pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0, validation_size=0.2, seed = 42 )
-
-input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'WT+ETOH')
-input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'CIP+ETOH')
-input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'RIF+ETOH')
-
-pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path=input_path_WT, image_size=(684, 420))
-pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path=input_path_CIP, image_size=(684, 420))
-pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_RIF, output_path=input_path_RIF, image_size=(684, 420))
 
 # --- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
 annots_WT = os.path.join(input_path_WT, 'annots')
@@ -80,7 +73,7 @@ files_CIP = os.path.join(output_collected_test, 'CIP+ETOH')
 annots_RIF = os.path.join(input_path_RIF, 'annots')
 files_RIF = os.path.join(output_collected_test, 'RIF+ETOH')
 
-output = os.path.join(get_parent_path(1), 'Data', 'Dataset_Test4')
+output = os.path.join(get_parent_path(1), 'Data', 'Dataset_Exp2_Test')
 
 pipeline.FileOp('TrainTestVal_split', data_sources=[files_WT, files_CIP, files_RIF],
                 annotation_sources=[annots_WT, annots_CIP, annots_RIF], output_folder=output, test_size=1.0,
@@ -88,14 +81,14 @@ pipeline.FileOp('TrainTestVal_split', data_sources=[files_WT, files_CIP, files_R
 
 #---TRAIN 1ST STAGE MODEL---
 
-weights_start = os.path.join(get_parent_path(1), 'Data','mask_rcnn_coco.h5')
-train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train0+3', 'Train')
-val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Train0+3', 'Validation')
-test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Test4', 'Test')
+weights_start = os.path.join(get_parent_path(1), 'Data','MaskRCNN_pretrained_coco.h5')
+train_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Exp2_Train', 'Train')
+val_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Exp2_Train', 'Validation')
+test_dir = os.path.join(get_parent_path(1), 'Data', 'Dataset_Exp2_Test', 'Test')
 output_dir = get_parent_path(1)
 
 configuration = BacConfig()
-configuration.NAME = 'PredConfig_1+3'
+configuration.NAME = 'Exp2'
 
 import imgaug.augmenters as iaa  # import augmentation library
 
@@ -112,16 +105,20 @@ augmentation = [
 
 # --- INSPECT TRAIN DATASET AND AUGMENTATION---
 
+class PseudoTTY(object):
+    def __init__(self, underlying):
+        self.__underlying = underlying
+    def __getattr__(self, name):
+        return getattr(self.__underlying, name)
+    def isatty(self):
+        return True
+
+sys.stdout = PseudoTTY(sys.stdout)
+
+
 inspect_dataset(dataset_folder = train_dir)
 inspect_augmentation(dataset_folder = train_dir, configuration = configuration, augmentation = augmentation)
 
 # --- TRAIN 1st STAGE SEGMENTER
 
 train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
-
-# --- INSPECT 1st STAGE STEPWISE AND OPTIMISE
-
-#inspect_segmenter_stepwise(train_folder = train_dir, test_folder = test_dir, configuration = configuration, weights = weights)
-#optimise_mrcnn_segmenter(mode = 'training', arg_names = ['LEARNING_RATE', 'IMAGES_PER_GPU'], arg_values = [[0.007,0.01],[4,6,8]], train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir )
-#optimise_mrcnn_segmenter(mode = 'inference', arg_names = ['DETECTION_NMS_THRESHOLD' ], arg_values = [[0.2,0.1]], test_folder=test_dir, configuration=configuration, weights=weights, ids=ids)
-#inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=ids )

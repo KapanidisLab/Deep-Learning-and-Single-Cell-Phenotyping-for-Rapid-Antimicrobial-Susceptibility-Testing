@@ -53,8 +53,8 @@ parameter_grid = {'batch_size':[8,16,32,64], 'learning_rate':[0.0005,0.001,0.005
 #optimize(mode = 'ResNet50', X_train = X_train, y_train = y_train, parameter_grid = parameter_grid, resize_target = resize_target, class_count = class_count, logdir = logdir )
 #optimize(mode = 'DenseNet121', X_train = X_train, y_train = y_train, parameter_grid = parameter_grid, resize_target = resize_target, class_count = class_count, logdir = logdir )
 
-train(mode='ResNet50', X_train=X_train, y_train=y_train, resize_target=resize_target, class_count=class_count,
-      logdir=None, batch_size=64)
+#train(mode='ResNet50', X_train=X_train, y_train=y_train, resize_target=resize_target, class_count=class_count,
+ #     logdir=None, batch_size=64)
 
 
 # ---PREDICT---

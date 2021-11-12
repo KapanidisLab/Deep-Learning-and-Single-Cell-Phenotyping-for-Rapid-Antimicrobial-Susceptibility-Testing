@@ -3,7 +3,7 @@ import os
 import sys
 
 import tensorflow
-
+from scipy.ndimage.filters import gaussian_filter
 from helpers import *
 
 
@@ -346,7 +346,7 @@ def save_cells_dataset(X_train=None, X_test=None, y_train=None, y_test=None, cla
     iterate(X_test, y_test, mode='Test', pathmapping=category_ID_to_savepath)
 
 
-def define_model(mode = None, resize_target=None, class_count=None, initial_lr=None, opt=None, init_source=None):
+def define_model(mode = None, size_target=None, class_count=None, initial_lr=None, opt=None, init_source=None):
     #Defines and returns one of the included keras architectures. Init source either None for random init, or path to weights
 
 
@@ -365,11 +365,11 @@ def define_model(mode = None, resize_target=None, class_count=None, initial_lr=N
     #Select model from supported modes
 
     if mode == 'VGG16':
-        model = VGG16(include_top=True, weights=weights, input_shape=resize_target, classes = class_count)
+        model = VGG16(include_top=True, weights=weights, input_shape=size_target, classes = class_count)
     elif mode == 'ResNet50':
-        model = ResNet50(include_top=True, weights=weights, input_shape=resize_target, classes=class_count)
+        model = ResNet50(include_top=True, weights=weights, input_shape=size_target, classes=class_count)
     elif mode == 'DenseNet121':
-        model = DenseNet121(include_top=True, weights=weights, input_shape=resize_target, classes=class_count)
+        model = DenseNet121(include_top=True, weights=weights, input_shape=size_target, classes=class_count)
     else:
         raise TypeError('Model {} not supported'.format(mode))
 
@@ -395,7 +395,7 @@ def define_model(mode = None, resize_target=None, class_count=None, initial_lr=N
     return model
 
 
-def train(mode = None, X_train = None, y_train = None, resize_target = None, class_count = None, logdir = None,verbose=False, **kwargs):
+def train(mode = None, X_train = None, y_train = None, size_target = None, pad_cells=False, resize_cells=False, class_count = None, logdir = None, verbose=False, **kwargs):
     '''
     Trains vgg16 standard keras implementation on cells_object. Loads entire dataset into RAM by default for easier
     preprocessing (Change this is dataset size becomes too big). Random weight init.
@@ -408,6 +408,9 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     import keras.callbacks
     from datetime import datetime
 
+    if pad_cells: assert not resize_cells
+    elif resize_cells: assert not pad_cells
+
     #Get optional parameters, if not supplied load default values
     batch_size = kwargs.get('batch_size',16)
     epochs = kwargs.get('epochs',100)
@@ -416,7 +419,7 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     optimizer = kwargs.get('optimizer', 'SGD+N')
 
     #Create model instance
-    model = define_model(mode=mode, resize_target=resize_target, class_count=class_count, initial_lr=learning_rate, opt=optimizer)
+    model = define_model(mode=mode, size_target=size_target, class_count=class_count, initial_lr=learning_rate, opt=optimizer)
 
     #Load and resize images, without maintaining aspect ratio.
     #One-hot encode labels
@@ -426,8 +429,15 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     if verbose:
         inspect_model_data(X_train, y_train, n)
 
-    X_train = [resize(img, resize_target) for img in X_train]
-    X_train = np.asarray(X_train) #Cast between 0-1, resize
+
+    if resize_cells:
+        print('Resizing cell images to {}'.format(size_target))
+        X_train = [resize(img, size_target) for img in X_train]
+    elif pad_cells:
+        print('Padding cell images to {}'.format(size_target))
+        X_train = [pad_to_size(img,size_target) for img in X_train]
+
+    X_train = np.asarray(X_train)  # Cast between 0-1, resize
     y_train = to_categorical(y_train)
 
     if verbose:
@@ -440,8 +450,8 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     datagen = ImageDataGenerator(featurewise_center=False, featurewise_std_normalization=False, fill_mode='constant',
                                  cval=0, validation_split=validation_split, data_format='channels_last',
                                  horizontal_flip=True, vertical_flip=True, rotation_range=180,
-                                 width_shift_range = 0.2, height_shift_range=0.2
-                                 ) #20% validation split
+                                 width_shift_range = 0.2, height_shift_range=0.2, preprocessing_function=simulate_defocus)
+    #20% validation split
     datagen.fit(X_train)
 
     #Create iterators
@@ -449,7 +459,7 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     val_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='validation')
 
     if verbose:
-        inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1,2])
+        inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1])
 
     #Savefile name
 
@@ -469,7 +479,7 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
 
     callbacks = [
         keras.callbacks.TensorBoard(log_dir=logdir,
-                                    histogram_freq=0, write_graph=False, write_images=True),
+                                    histogram_freq=10, write_graph=False, write_images=True),
         keras.callbacks.ModelCheckpoint(os.path.join(logdir,checkpoint_name),
                                         verbose=0, save_weights_only=False, save_best_only=True, monitor='loss',
                                         mode='min'),
@@ -482,7 +492,68 @@ def train(mode = None, X_train = None, y_train = None, resize_target = None, cla
     #Plot basic stats
     summarize_diagnostics(history, checkpoint_name)
 
+def simulate_defocus(img):
+    '''
+    Simulate microscope defocus using random Gaussian blurring
+    '''
 
+    #Draw for blurring event chance
+    chance = np.random.uniform()
+
+    if chance >= 0.6: #Blur in 40% of examples:
+
+        #Draw for blurring magnitude
+        sigma = np.random.uniform(0,2.5)
+
+        return gaussian_filter(img,sigma=(sigma,sigma,0))
+    else:
+        return img
+
+def rescale_intensity(img):
+    p1, p99 = np.percentile(img, (1, 99))
+    return skimage.exposure.rescale_intensity(img, in_range=(p1, p99))
+
+
+
+
+
+
+def pad_to_size(image,size_target):
+    from skimage.transform import resize
+
+    (sy,sx,ch) = image.shape
+
+    if sy > size_target[0] or sx > size_target[1]:
+        print('Resizing cell dimensions {} to {}'.format(image.shape, size_target))
+        return resize(image, size_target)
+
+    total_sy = abs(sy-size_target[0])
+    total_sx = abs(sx-size_target[1])
+
+    if total_sy % 2 == 0:
+        sy_before = total_sy/2
+        sy_after = sy_before
+
+    else:
+        sy_before= int(total_sy/2)
+        sy_after = sy_before + 1
+
+    if total_sx % 2 == 0:
+        sx_before = total_sx/2
+        sx_after = sx_before
+
+    else:
+        sx_before= int(total_sx/2)
+        sx_after = sx_before + 1
+
+    new_img = np.zeros(size_target,dtype='uint16')
+
+    for i in range(3):
+        new_img[:,:,i] = np.pad(image[:,:,i], ((int(sy_before), int(sy_after)), (int(sx_before), int(sx_after))), mode='constant',constant_values=0)
+
+    assert new_img.shape == size_target
+
+    return skimage.util.img_as_float64(new_img)
 
 
 def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None, resize_target = None, class_count = None, logdir = None ):
@@ -515,7 +586,7 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
         p.start()
         p.join()
 
-def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=None, class_id_to_name=None):
+def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=None, class_id_to_name=None, pad_cells=False, resize_cells=False):
 
     #Work on annotated (ie test) data.
 
@@ -526,7 +597,10 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=N
 
     import matplotlib.pyplot as plt
 
-    result,model = predict(modelpath=modelpath,X_test=X_test, mean=mean, resize_target=resize_target)
+    if pad_cells: assert not resize_cells
+    elif resize_cells: assert not pad_cells
+
+    result,model = predict(modelpath=modelpath,X_test=X_test, mean=mean, size_target=size_target, pad_cells=pad_cells, resize_cells=resize_cells)
 
     #Map classnames to class labels
     labels = [0]*len(class_id_to_name) #initialise array
@@ -539,7 +613,9 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, resize_target=N
     disp.plot(cmap='Blues')
     plt.show()
 
-def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
+    display_misclassifications(result,y_test,X_test,class_id_to_name,10)
+
+def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=False, resize_cells=False):
     import multiprocessing
     from keras import backend as K
 
@@ -551,11 +627,21 @@ def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
 
     #Evaluate
 
+    if pad_cells: assert not resize_cells
+    elif resize_cells: assert not pad_cells
+
+    # Load and pre-process data
+    if resize_cells:
+        print('Resizing cell images to {}'.format(size_target))
+        X_test = [resize(img, size_target) for img in X_test]
+    elif pad_cells:
+        print('Padding cell images to {}'.format(size_target))
+        X_test = [pad_to_size(img,size_target) for img in X_test]
+
+
     # Load model
     model = load_model(modelpath)
 
-    # Load and pre-process data
-    X_test = [resize(img, resize_target) for img in X_test]
     X_test = np.asarray(X_test)  # Cast between 0-1, resize
 
     # Subtract training mean
@@ -567,6 +653,64 @@ def predict(modelpath=None, X_test=None, mean=None, resize_target=None):
     return result,model #Return result and model instance used
 
 
+def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
+    # Find mismatches
+    matching = np.asarray(y_test) == result
+    idx = np.argwhere(matching == False).flatten()
+
+    #Get ground truth and predicted classes
+    mismatches_gt = np.asarray(y_test)[idx].flatten()
+    mismatches_prediction = result[idx].flatten()
+
+
+
+    #Fetch corresponding images, per class
+    X_test = np.asarray(X_test)
+    for i in range(len(class_id_to_name)):
+        class_id = class_id_to_name[i]['class_id']
+        name = class_id_to_name[i]['name']
+
+        mismatches_perclass_idx = np.argwhere(mismatches_gt.flatten() == class_id).flatten()
+        mismatches_perclass = X_test[idx[mismatches_perclass_idx]]
+        mismatches_perclass_prediction = mismatches_prediction[mismatches_perclass_idx]
+
+        # Create display handle
+        rows = len(class_id_to_name) - 1
+        cols = n
+
+        fig, axs = plt.subplots(rows, cols, constrained_layout=True, figsize=(cols*2,rows*2))
+        fig.suptitle('Ground truth {} missclassifications'.format(name), fontsize=12)
+
+        active_col = 0
+        for j in range(len(class_id_to_name)):
+            class_id_mis = class_id_to_name[j]['class_id']
+            if class_id_mis == class_id: continue
+
+
+            name_mis = class_id_to_name[j]['name']
+
+            matching_target = mismatches_perclass[np.argwhere(mismatches_perclass_prediction == class_id_mis)].flatten()
+
+            try:
+                random_n = matching_target[np.arange(n)]
+                sample_count = len(random_n)
+            except IndexError as err:
+                random_n = matching_target #If fewer than 5 errors, just take what we have
+                sample_count=len(random_n)
+
+            for k in range(sample_count):
+                img = random_n[k]
+                p1, p99 = np.percentile(img, (1, 99))
+                img = skimage.exposure.rescale_intensity(img, in_range=(p1, p99))
+                img = skimage.img_as_ubyte(img)  # Recast for imshow
+
+                title = str(name_mis)
+                axs[active_col, k].imshow(img)
+                axs[active_col, k].set_title(title)
+            active_col += 1
+
+        fig.set_constrained_layout_pads(hspace=0.1, wspace=0.1)
+        plt.show()
 
 
 

@@ -147,9 +147,9 @@ if __name__ == '__main__':
     pipeline2.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected_test, registration_target=None)
     #--- GENERATE MASKS FROM SEGMENTATION FILE---
 
-    input_path_WT = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'WT+ETOH')
-    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'CIP+ETOH')
-    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations', 'RIF+ETOH')
+    input_path_WT = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data','Train_0+3', 'Segmentations_All', 'RIF+ETOH')
 
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path = input_path_WT, image_size=(684, 420))
     pipeline.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path= input_path_CIP, image_size=(684, 420))
@@ -171,9 +171,9 @@ if __name__ == '__main__':
 
     pipeline.FileOp('TrainTestVal_split', data_sources = [files_WT,files_CIP,files_RIF], annotation_sources = [annots_WT,annots_CIP,annots_RIF], output_folder = output,test_size = 0, validation_size=0.2, seed = 42 )
 
-    input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'WT+ETOH')
-    input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'CIP+ETOH')
-    input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations', 'RIF+ETOH')
+    input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Test_4', 'Segmentations_All', 'RIF+ETOH')
 
     pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_WT, output_path=input_path_WT, image_size=(684, 420))
     pipeline2.FileOp('masks_from_OUFTI', mask_path=input_path_CIP, output_path=input_path_CIP, image_size=(684, 420))

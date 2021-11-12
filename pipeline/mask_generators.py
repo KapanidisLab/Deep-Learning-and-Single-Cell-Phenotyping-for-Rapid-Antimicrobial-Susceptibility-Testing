@@ -215,7 +215,7 @@ def masks_from_Cellpose(mask_path=None, output_path=None, global_image_size=None
     return os.path.join(output_path, 'annots')
 
 
-def masks_from_integer_encode(mask_path=None, output_path=None, global_image_size=None, image_dir=None):
+def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_size=None, image_dir=None,combined_convention=True):
     '''
     Locates composite masks stored as .tif files (integer encoded) and generates single cell masks in the output folder,
     in the structure output_folder/annots/(image_name)/Cell1.bmp... Cell2.bmp....
@@ -227,6 +227,9 @@ def masks_from_integer_encode(mask_path=None, output_path=None, global_image_siz
     output_path : string
         path to directory where the output data structure will be created.
         Function creates a folder called annots. Inside annots, each subdir is a separate image, inside which are binary masks.
+    combined_convention : bool
+        If true save cells under a convention matching that of ProcessingPipeline.Collect. If else, cells are saved under annotation file filename.
+
     Returns
     -------
 
@@ -238,6 +241,8 @@ def masks_from_integer_encode(mask_path=None, output_path=None, global_image_siz
     used_masks = 0
     image_total = 0
 
+    makedir(os.path.join(output_path, 'annots'))
+
     # Find all annotation files that end with .tif
 
     for root, dirs, files in os.walk(mask_path, topdown=True):
@@ -248,8 +253,41 @@ def masks_from_integer_encode(mask_path=None, output_path=None, global_image_siz
 
                 img_filename = os.path.splitext(file)[0]
 
-                # Create folder with masks
-                makedir(os.path.join(output_path, 'annots', img_filename))
+                # Create folder with mask
+
+                if combined_convention:
+
+                    file_delim = img_filename.split('_')
+
+                    if len(file_delim) == 13:
+                        [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID,
+                         file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, channels, timestamp,
+                         file_Z_ID] = file_delim
+                        assert timestamp == 't0'
+                        assert channels == 'channels'
+                    elif len(file_delim) == 11:
+                        [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID,
+                         file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                    else:
+                        raise ValueError(
+                            'Unexpected .tif file in experiment folder. File name does not match expected convention')
+
+                    # Extract series counter
+                    dataset_tag = [int(s) for s in list(file_CHANNEL_SERIES) if
+                                   s.isdigit()]  # Extract dataset tag from channel info
+                    if len(dataset_tag) != 1:
+                        raise RuntimeError('ERROR - badly formatted series identifier.')
+
+                    new_filename = file_DATE + '_' +file_EXPID  + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
+                        file_CONDID) + '_' + file_POSITION_ID
+
+                    makedir(os.path.join(output_path, 'annots', new_filename))
+                else:
+
+                    new_filename = img_filename
+                    makedir(os.path.join(output_path, 'annots', new_filename))
+
+
 
                 #Load annot file for image
                 loadpath = os.path.join(root,file)
@@ -266,17 +304,15 @@ def masks_from_integer_encode(mask_path=None, output_path=None, global_image_siz
                     i = np.where(mask_idxs == 0)
                     mask_idxs = np.delete(mask_idxs, i)
 
-                output = np.zeros((masks.shape[0], masks.shape[1], len(mask_idxs)))
-
                 # Decompact into strictly binary mask stack
                 for mask_idx in mask_idxs:
-                    singe_cell_mask = np.where(masks == mask_idx, 1, 0)
+                    single_cell_mask = np.where(masks == mask_idx, 1, 0)
 
                     filename = 'Cell' + str(cellcount) + '.bmp'  # Mask filename
-                    savepath = os.path.join(output_path, 'annots', img_filename,
+                    savepath = os.path.join(output_path, 'annots', new_filename,
                                             filename)  # Assemble whole save path
 
-                    skimage.io.imsave(savepath, skimage.img_as_ubyte(single_cell_mask, check_contrast=False))
+                    skimage.io.imsave(savepath, skimage.img_as_ubyte(single_cell_mask), check_contrast=False)
 
                     cellcount += 1
                     used_masks += 1

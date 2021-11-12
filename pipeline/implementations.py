@@ -121,7 +121,7 @@ def TrainTestVal_split(data_sources=None, annotation_sources=None, output_folder
         Train,Validation = sklearn.model_selection.train_test_split(Train_Val, test_size = validation_size, shuffle=True, random_state=seed)
 
 
-    assert len(Train) + len(Test) +len(Validation) == total
+    assert len(Train) + len(Test) +len(Validation) == len(matches)
 
     #Create output structure and copy files into it
     llist = {'Train': Train, 'Test': Test, 'Validation': Validation}
@@ -288,7 +288,15 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                 matched = False
 
                 #Extract metadata from filename
-                [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                if len(file_delim) == 13:
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID,channels,timestamp, file_Z_ID] = file_delim
+                    assert timestamp == 't0'
+                    assert channels == 'channels'
+                elif len(file_delim) == 11:
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                else:
+                    raise ValueError('Unexpected .tif file in experiment folder. File name does not match expected convention')
+
 
                 for condition_ID in cond_IDs:  # Iterate over expected conditions and save files
 
@@ -321,7 +329,11 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                                     img = img[:, int(sy / int(2)):]  # Crop FoV to remove unused half - keep right side
                                     assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
 
-                                skimage.io.imsave(os.path.join(savefolder, file),
+
+                                #Assemble file name
+                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID)
+
+                                skimage.io.imsave(os.path.join(savefolder, fname),
                                                   img)  # Write image to appropriate sub folder
                                 matched = True
 
