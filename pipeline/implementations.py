@@ -15,6 +15,7 @@ from tqdm import tqdm
 import re
 import sys
 import scipy.ndimage
+from itertools import chain
 
 def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for image-wise operation to fit with Parallel
     import skimage.io, os
@@ -278,7 +279,10 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
     makedir(output_folder)
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    for root, dirs, files in tqdm(os.walk(data_folder, topdown=True), total=dircounter(data_folder), unit='dirs',
+    if not isinstance(data_folder,list):
+        data_folder = [data_folder]
+
+    for root, dirs, files in tqdm(chain.from_iterable(os.walk(path) for path in data_folder),total=dircounter(data_folder), unit='dirs',
                                   desc='Searching directories'):
         for file in files:
 

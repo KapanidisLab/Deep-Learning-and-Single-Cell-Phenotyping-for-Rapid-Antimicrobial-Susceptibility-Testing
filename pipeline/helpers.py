@@ -16,6 +16,7 @@ import os, sys
 import numpy as np
 import sklearn.metrics
 import skimage.io
+from itertools import chain
 
 def dircounter(folder):
     '''
@@ -34,11 +35,12 @@ def dircounter(folder):
     '''
 
     import os
-    if not os.path.exists(folder):
-        raise ValueError('Folder does not exist.')
-
     counter = 0
-    for root, dirs, files in os.walk(folder,topdown = True ):
+
+    if not isinstance(folder,list):
+        folder = [folder]
+
+    for root, dirs, files in chain.from_iterable(os.walk(path) for path in folder):
             counter = counter + 1
     return counter 
 
@@ -59,11 +61,12 @@ def filecounter(folder):
     '''
 
     import os
-    if not os.path.exists(folder):
-        raise ValueError('Folder does not exist.')
+
+    if not isinstance(folder, list):
+        folder = [folder]
 
     counter = 0
-    for root, dirs, files in os.walk(folder,topdown = True ):
+    for root, dirs, files in chain.from_iterable(os.walk(path) for path in folder):
         for file in files:
             counter = counter + 1
     return counter 

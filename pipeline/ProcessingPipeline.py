@@ -80,7 +80,7 @@ class ProcessingPipeline:
         self.sorted = True #Set status flag
             
     def Collect(self, **kwargs):
-        assert self.sorted == True, 'Images must be sorted first.'
+        #assert self.sorted == True, 'Images must be sorted first.'
         
         instrument = self.instrument        
         collector = self._Factory._create(('collector',instrument)) #Fetch right collector

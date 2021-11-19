@@ -1,3 +1,4 @@
+import keras
 import numpy as np
 import os
 import sys
@@ -5,7 +6,13 @@ import sys
 import tensorflow
 from scipy.ndimage.filters import gaussian_filter
 from helpers import *
+from Datagen_imgaug import DataGenerator
+from imgaug import augmenters as iaa
 
+from keras.applications.vgg16 import VGG16
+from keras.applications.resnet50 import ResNet50
+from keras.applications.densenet import DenseNet121
+from keras.optimizers import SGD, Adam, Nadam
 
 def struct_from_file(dataset_folder=None, class_id = 1):
 
@@ -350,11 +357,6 @@ def define_model(mode = None, size_target=None, class_count=None, initial_lr=Non
     #Defines and returns one of the included keras architectures. Init source either None for random init, or path to weights
 
 
-    from keras.applications.vgg16 import VGG16
-    from keras.applications.resnet50 import ResNet50
-    from keras.applications.densenet import DenseNet121
-    from keras.optimizers import SGD, Adam, Nadam
-
     #Select weight source
     if init_source is None:
         weights = None
@@ -437,7 +439,7 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
         print('Padding cell images to {}'.format(size_target))
         X_train = [pad_to_size(img,size_target) for img in X_train]
 
-    X_train = np.asarray(X_train)  # Cast between 0-1, resize
+    X_train = skimage.img_as_ubyte(np.asarray(X_train))
     y_train = to_categorical(y_train)
 
     if verbose:
@@ -447,19 +449,55 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     #Generator class. Compute pre-processing sttistics. Can also specify on the fly augmentation.
     validation_split = 0.2
 
-    datagen = ImageDataGenerator(featurewise_center=False, featurewise_std_normalization=False, fill_mode='constant',
-                                 cval=0, validation_split=validation_split, data_format='channels_last',
-                                 horizontal_flip=True, vertical_flip=True, rotation_range=180,
-                                 width_shift_range = 0.2, height_shift_range=0.2, preprocessing_function=simulate_defocus)
-    #20% validation split
-    datagen.fit(X_train)
+    #Split apart validation
+    count_total = len(X_train) #Total number of training+validation examples
+    val_count = int((count_total * validation_split)) #Number of validation examples
+    train_count = count_total - val_count #Number of actual training examples
 
-    #Create iterators
-    train_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='training')
-    val_it = datagen.flow(X_train, y=y_train, batch_size=batch_size, shuffle=True, seed=42, subset='validation')
+
+    #Select indicies to include in validation
+    val_idx = np.random.choice(np.arange(count_total), size=val_count, replace=False)
+    train_idx = np.setdiff1d(np.arange(count_total), val_idx, assume_unique=False)
+
+    val_X= X_train[val_idx,:,:,:]
+    train_X = X_train[train_idx,:,:,:]
+
+    val_y = y_train[val_idx,:]
+    train_y = y_train[train_idx,:]
+
+    assert len(val_X) + len(train_X) == count_total
+    assert len(val_y) + len(train_y) == count_total
+
+
+    #Define augmentation
+
+    seq1 = iaa.Sequential(
+        [
+            iaa.Fliplr(0.5),
+            iaa.Flipud(0.5),
+            iaa.Affine(
+                scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
+                rotate=(-90, 90),
+                mode="reflect"
+            )
+        ],
+        random_order=True)
+
+    seq2 = iaa.Sequential(
+        [
+            iaa.Sometimes(0.5, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.5, 1.5))),
+            iaa.Sometimes(0.5, iaa.GammaContrast(gamma=(0.7, 1.7), per_channel=True)),
+            iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0, 2.5))),
+        ],
+        random_order=True)
+
+
+    traingen = DataGenerator(train_X, train_y,
+                 batch_size=batch_size, shuffle=True, augment=True, aug1 = seq1, aug2 = seq2)
+
 
     if verbose:
-        inspect_model_data(train_it.next()[0], train_it.next()[1], [0,1])
+        inspect_model_data(traingen[0][0], traingen[0][1], [0,1,2])
 
     #Savefile name
 
@@ -487,7 +525,13 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     ]
 
     #Train
-    history = model.fit_generator(train_it, steps_per_epoch=len(train_it), validation_data=val_it, validation_steps=len(val_it), epochs=epochs, verbose=1, callbacks=callbacks)
+    if not verbose:
+        verbose_setting = 2
+    else:
+        verbose_setting = 1
+
+
+    history = model.fit_generator(traingen, steps_per_epoch=len(traingen), validation_data=(val_X,val_y),  epochs=epochs, verbose=verbose_setting, callbacks=callbacks)
 
     #Plot basic stats
     summarize_diagnostics(history, checkpoint_name)
@@ -586,7 +630,7 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
         p.start()
         p.join()
 
-def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=None, class_id_to_name=None, pad_cells=False, resize_cells=False):
+def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=None, class_id_to_name=None, pad_cells=False, resize_cells=False, normalise_CM=True, queue=None):
 
     #Work on annotated (ie test) data.
 
@@ -608,12 +652,22 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
         labels[elm['class_id']] = elm['name']
 
     #Plot matrix
-    CM = confusion_matrix(y_test,result, normalize='true')
+    if normalise_CM:
+        normalisation = 'true'
+    else:
+        normalisation = None
+
+    CM = confusion_matrix(y_test,result, normalize=normalisation)
     disp = ConfusionMatrixDisplay(confusion_matrix=CM, display_labels = labels)
     disp.plot(cmap='Blues')
     plt.show()
 
     display_misclassifications(result,y_test,X_test,class_id_to_name,10)
+
+    if queue is not None:
+        queue.put(CM)
+
+    return CM
 
 def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=False, resize_cells=False):
     import multiprocessing
@@ -640,9 +694,14 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
 
 
     # Load model
-    model = load_model(modelpath)
+    if isinstance(modelpath,str):
+        model = load_model(modelpath)
+    elif isinstance(modelpath,keras.Model):
+        model = modelpath
+    else:
+        raise TypeError('Modelpath is an unrecognised type.')
 
-    X_test = np.asarray(X_test)  # Cast between 0-1, resize
+    X_test = skimage.img_as_ubyte(np.asarray(X_test))  # Cast between 0-1, resize
 
     # Subtract training mean
     X_test = X_test - mean
