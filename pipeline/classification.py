@@ -1,3 +1,5 @@
+import copy
+
 import keras
 import numpy as np
 import os
@@ -469,6 +471,13 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     assert len(val_y) + len(train_y) == count_total
 
 
+    #Rescale back to uint8 for better imgaug integration
+
+    #Equalize all histograms
+    histeq = iaa.Sequential([iaa.AllChannelsHistogramEqualization()])
+    train_X = histeq(images = train_X)
+    val_X = histeq(images = val_X)
+
     #Define augmentation
 
     seq1 = iaa.Sequential(
@@ -478,22 +487,26 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
             iaa.Affine(
                 scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
                 rotate=(-90, 90),
-                mode="reflect"
+                mode="constant",
+                cval=0
             )
         ],
         random_order=True)
 
     seq2 = iaa.Sequential(
         [
-            iaa.Sometimes(0.5, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.5, 1.5))),
-            iaa.Sometimes(0.5, iaa.GammaContrast(gamma=(0.7, 1.7), per_channel=True)),
-            iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0, 2.5))),
+            iaa.Sometimes(0.5, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.5, 1.5))), #Random sharpness increae
+            iaa.Sometimes(0.5, iaa.WithChannels(0, iaa.Affine(translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)}))), #Random up to 10% misalignment
+            iaa.Sometimes(0.5, iaa.MultiplyBrightness((0.5, 2.0))), #Brightness correction
+            iaa.Sometimes(0.5, iaa.imgcorruptlike.GaussianNoise(severity=(1,2))), #Random gaussian noise
+            #iaa.Sometimes(0.5, iaa.imgcorruptlike.DefocusBlur(severity=(1,2))), #Defocus correction
+            iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0.0, 2.5)))
         ],
-        random_order=True)
+        )
 
 
     traingen = DataGenerator(train_X, train_y,
-                 batch_size=batch_size, shuffle=True, augment=True, aug1 = seq1, aug2 = seq2)
+                 batch_size=batch_size, shuffle=True, augment=True, aug1=seq1, aug2=seq2)
 
 
     if verbose:
@@ -638,6 +651,7 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
     from skimage.transform import resize
     from sklearn.metrics import confusion_matrix
     from sklearn.metrics import ConfusionMatrixDisplay
+    from skimage.transform import resize
 
     import matplotlib.pyplot as plt
 
@@ -662,7 +676,7 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
     disp.plot(cmap='Blues')
     plt.show()
 
-    display_misclassifications(result,y_test,X_test,class_id_to_name,10)
+    display_misclassifications(result,y_test,X_test,class_id_to_name,10,resize_cells=resize_cells, pad_cells=pad_cells, size_target=size_target)
 
     if queue is not None:
         queue.put(CM)
@@ -703,6 +717,9 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
 
     X_test = skimage.img_as_ubyte(np.asarray(X_test))  # Cast between 0-1, resize
 
+    histeq = iaa.Sequential([iaa.AllChannelsHistogramEqualization()]) #Equalize histogram
+    X_test = histeq(images = X_test)
+
     # Subtract training mean
     X_test = X_test - mean
 
@@ -712,7 +729,10 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
     return result,model #Return result and model instance used
 
 
-def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
+def display_misclassifications(result,y_test,X_test,class_id_to_name,n, resize_cells=None, pad_cells=None, size_target=None):
+
+    from skimage.transform import resize
+
     # Find mismatches
     matching = np.asarray(y_test) == result
     idx = np.argwhere(matching == False).flatten()
@@ -722,9 +742,28 @@ def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
     mismatches_prediction = result[idx].flatten()
 
 
+    if pad_cells:
+        assert not resize_cells
+    elif resize_cells:
+        assert not pad_cells
+
+    # Load and pre-process data
+    if resize_cells:
+        print('Resizing cell images to {}'.format(size_target))
+        X_test = [resize(img, size_target) for img in X_test]
+    elif pad_cells:
+        print('Padding cell images to {}'.format(size_target))
+        X_test = [pad_to_size(img, size_target) for img in X_test]
+
 
     #Fetch corresponding images, per class
-    X_test = np.asarray(X_test)
+    X_test = skimage.img_as_ubyte(np.asarray(X_test))  # Cast between 0-1, resize
+
+    #Equalize all histograms
+    histeq = iaa.Sequential([iaa.AllChannelsHistogramEqualization()])
+    X_test= histeq(images = X_test)
+
+
     for i in range(len(class_id_to_name)):
         class_id = class_id_to_name[i]['class_id']
         name = class_id_to_name[i]['name']
@@ -748,7 +787,7 @@ def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
 
             name_mis = class_id_to_name[j]['name']
 
-            matching_target = mismatches_perclass[np.argwhere(mismatches_perclass_prediction == class_id_mis)].flatten()
+            matching_target = mismatches_perclass[np.argwhere(mismatches_perclass_prediction == class_id_mis)]
 
             try:
                 random_n = matching_target[np.arange(n)]
@@ -759,13 +798,19 @@ def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
 
             for k in range(sample_count):
                 img = random_n[k]
-                p1, p99 = np.percentile(img, (1, 99))
-                img = skimage.exposure.rescale_intensity(img, in_range=(p1, p99))
+                img = img[0,:,:,:] #Remove singleton dimension
+
+                #Calculate means - mask out zeros to get means within cell only
+                means = get_masked_mean(img)
+                means = np.asarray(means,dtype='int')
+
                 img = skimage.img_as_ubyte(img)  # Recast for imshow
 
                 title = str(name_mis)
                 axs[active_col, k].imshow(img)
                 axs[active_col, k].set_title(title)
+                axs[active_col, k].set_xlabel(str(means))
+
             active_col += 1
 
         fig.set_constrained_layout_pads(hspace=0.1, wspace=0.1)
@@ -773,7 +818,18 @@ def display_misclassifications(result,y_test,X_test,class_id_to_name,n):
 
 
 
+def get_masked_mean(img):
 
+    '''
+    Get mean of image ignoring all zeros
+    '''
+    local_img = copy.deepcopy(img)
+
+    mask = local_img == 0
+    local_img_masked = np.ma.masked_array(local_img,mask=mask)
+    mean = np.asarray(np.mean(local_img_masked,axis=(0,1)))
+
+    return mean
 
 
 

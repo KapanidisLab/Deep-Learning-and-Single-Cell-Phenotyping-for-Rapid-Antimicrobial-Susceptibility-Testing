@@ -278,7 +278,7 @@ def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_s
                     if len(dataset_tag) != 1:
                         raise RuntimeError('ERROR - badly formatted series identifier.')
 
-                    new_filename = file_DATE + '_' +file_EXPID  + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
+                    new_filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
                         file_CONDID) + '_' + file_POSITION_ID
 
                     makedir(os.path.join(output_path, 'annots', new_filename))

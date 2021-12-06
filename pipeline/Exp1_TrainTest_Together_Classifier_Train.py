@@ -17,8 +17,8 @@ img_dims = (30,684,840)
 
 
 pipeline = ProcessingPipeline(data_folder, 'NIM')
-#pipeline.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0, 'NR':0}, output_folder=output_segregated)
-#pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected, registration_target=0)
+pipeline.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0, 'NR':0}, output_folder=output_segregated)
+pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected, registration_target=0)
 
 # ---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS, SPLIT AND SAVE. TRAIN AND TEST SEPARATELY
 
@@ -67,8 +67,8 @@ logdir = os.path.join(get_parent_path(1), 'Second_Stage_2')
 resize_target = (64, 64, 3)
 class_count = 3
 
-#train(mode='DenseNet121', X_train=X_train, y_train=y_train, size_target=resize_target, class_count=class_count, pad_cells=True,
-#      logdir=logdir, batch_size=16, epochs=100,learning_rate=0.0005, optimizer='NAdam', verbose=False, dt_string='DenseNet121')
-print('inspecting')
-inspect(modelpath=os.path.join(logdir,'DenseNet121.h5'), X_test=X_test, y_test=y_test, mean=np.asarray([0, 0, 0]), size_target=resize_target, pad_cells=True,
-        class_id_to_name=cells['class_id_to_name'])
+#train(mode='DenseNet121_test', X_train=X_train, y_train=y_train, size_target=resize_target, class_count=class_count, pad_cells=True,
+ #     logdir=logdir, batch_size=16, epochs=100,learning_rate=0.0005, optimizer='NAdam', verbose=True, dt_string='DenseNet121')
+#print('inspecting')
+#inspect(modelpath=os.path.join(logdir,'DenseNet121.h5'), X_test=X_test, y_test=y_test, mean=np.asarray([0, 0, 0]), size_target=resize_target, pad_cells=True,
+ #       class_id_to_name=cells['class_id_to_name'])

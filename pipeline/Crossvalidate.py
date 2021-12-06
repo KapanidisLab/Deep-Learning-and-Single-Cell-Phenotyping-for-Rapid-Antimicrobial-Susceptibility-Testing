@@ -98,20 +98,20 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 
         local_pipeline_train = pipeline(train_folder, 'NIM')
-        #local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-         #                  crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
-        #local_pipeline_train.path = output_segregated_train
-        #local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
-         #                      registration_target=0)
+        local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                           crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+        local_pipeline_train.path = output_segregated_train
+        local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
+                               registration_target=0)
 
         data_sources = [os.path.join(output_collected_train,condition) for condition in cond_IDs]
         annotation_sources = [os.path.join(os.path.join(annotations_path,condition),'annots') for condition in cond_IDs]
 
         dataset_output_train = os.path.join(split_path,'Dataset_Train')
 
-        #local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
-         #                    annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
-          #                   validation_size=0.2, seed=42)
+        local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
+                             annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
+                             validation_size=0, seed=42)
 
 
         #Prepare test data
@@ -121,19 +121,19 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         output_collected_test = os.path.join(split_path,'Collected_Test')
 
         local_pipeline_test = pipeline(test_folder, 'NIM')
-        #local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-         #                   crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
-        #local_pipeline_test.path = output_segregated_test
-        #local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
-         #                     registration_target=0)
+        local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                            crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
+        local_pipeline_test.path = output_segregated_test
+        local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
+                              registration_target=0)
 
         data_sources = [os.path.join(output_collected_test, condition) for condition in cond_IDs]
 
         dataset_output_test = os.path.join(split_path, 'Dataset_Test')
 
-        #local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
-         #                    annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
-          #                   validation_size=0, seed=42)
+        local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
+                             annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
+                             validation_size=0, seed=42)
 
 
         #Extract data
@@ -168,9 +168,9 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
                   'verbose':verbose, 'dt_string':dt
                   }
 
-        #p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
-        #p.start()
-        #p.join()
+        p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
+        p.start()
+        p.join()
 
         print()
         print('-------------------------------------')
@@ -182,7 +182,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         kwargs = {'modelpath':os.path.join(logdir, dt+'.h5'), 'X_test':X_test, 'y_test':y_test,'mean':np.asarray([0, 0, 0]),
                   'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells, 'class_id_to_name':cells_train['class_id_to_name'],
-                  'normalise_CM':False, 'queue':queue}
+                  'normalise_CM':True, 'queue':queue}
 
         p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
         p.start()
@@ -198,18 +198,21 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for elm in cells_train['class_id_to_name']:
         labels[elm['class_id']] = elm['name']
 
-    #Display findal
-    disp = ConfusionMatrixDisplay(confusion_matrix=CM_total, display_labels = labels)
+    #Display final
+
+    CM_normal = CM_total/np.sum(CM_total, axis=0)
+
+    disp = ConfusionMatrixDisplay(confusion_matrix=CM_normal, display_labels = labels)
     disp.plot(cmap='Reds')
     plt.show()
 
 if __name__ == '__main__':
-    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidation_15_11_21')
+    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_400perexp')
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
 
-    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_200PerExperiment')
+    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_300PerExperiment_Improved_metric')
 
     experiment0 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_0_18_08_20')
     experiment1 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_1_25_03_21')
@@ -222,7 +225,7 @@ if __name__ == '__main__':
 
     size_target = (64,64,3)
 
-    logdir = os.path.join(get_parent_path(1),'Crossvalidate_15_11_21')
+    logdir = os.path.join(get_parent_path(1),'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_400perexp')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=3,

@@ -16,6 +16,7 @@ import re
 import sys
 import scipy.ndimage
 from itertools import chain
+import skimage.feature
 
 def _multiproc_op(filename, operation, root, **kwargs): #Simple wrapper for image-wise operation to fit with Parallel
     import skimage.io, os
@@ -296,11 +297,15 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID,channels,timestamp, file_Z_ID] = file_delim
                     assert timestamp == 't0'
                     assert channels == 'channels'
+                    file_Z_ID, fext = file_Z_ID.split('.')
                 elif len(file_delim) == 11:
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                    file_Z_ID, fext = file_Z_ID.split('.')
                 else:
                     raise ValueError('Unexpected .tif file in experiment folder. File name does not match expected convention')
 
+                if file_Z_ID != 'posZ0':
+                    continue #Ignore all not centered images
 
                 for condition_ID in cond_IDs:  # Iterate over expected conditions and save files
 
@@ -335,7 +340,7 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
 
 
                                 #Assemble file name
-                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID)
+                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID,fext)
 
                                 skimage.io.imsave(os.path.join(savefolder, fname),
                                                   img)  # Write image to appropriate sub folder
@@ -571,13 +576,13 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                 if matches == len(
                         channel_paths) - 1:  # Fully matched images only. Matches are one less than total channel number
 
-                    filename = file_DATE + '_' +file_EXPID  + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
+                    filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
                         cond_ID) + '_' + file_POSITION_ID + '.tif'  # Assemble filename
 
 
                     #If registration requested, register images
                     if registration_target is not None:
-                        assert registration_target <= len(image_channels), 'Registration target channel index must be less or equal to the channel count'
+                        assert registration_target <= len(image_channels)-1, 'Registration target channel index must be less or equal to the channel count'
 
                         target_channel = combined_image[registration_target,:,:]
 
@@ -592,6 +597,7 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                                 (tx,ty), error, diffphase = skimage.feature.register_translation(target_channel, channel, upsample_factor=10) #Calculate pixel offset
                                 shifted_channel = scipy.ndimage.shift(channel,(tx,ty))
                             except Exception:
+                                print('Registration failed for images: {} {}'.format(file,file2))
                                 registration_fail_count += 1
                                 break
 
