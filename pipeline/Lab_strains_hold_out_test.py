@@ -65,8 +65,8 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
                                 validation_size=0, seed=42)
 
     # Prepare test data
-    output_segregated_test = os.path.join(test_path, 'Segregated_Test')
-    output_collected_test = os.path.join(test_path, 'Collected_Test')
+    output_segregated_test = os.path.join(output_path, 'Segregated_Test')
+    output_collected_test = os.path.join(output_path, 'Collected_Test')
 
     local_pipeline_test = pipeline(test_path, 'NIM')
     local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
@@ -138,12 +138,12 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
 
 if __name__ == '__main__':
 
-    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_400perexp')
+    output_path = os.path.join(get_parent_path(1), 'Data', 'LabStrains_holdout')
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
 
-    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_300PerExperiment_Improved_metric')
+    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric')
 
     experiment0 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_0_18_08_20')
     experiment1 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_1_25_03_21')
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     experiment4 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_5_19_10_21')
     experiment5 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_6_25_10_21')
 
-    holdout_experiment = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_7_01_12_21_MG1655Lab_Test')
+    holdout_experiment = os.path.join(get_parent_path(1), 'Data', 'Exp1_HoldOut_test', 'Repeat_7_01_12_21')
 
     experiments_path_list = [experiment0,experiment1,experiment2,experiment3,experiment4,experiment5]
 
@@ -160,10 +160,7 @@ if __name__ == '__main__':
 
     logdir = output_path
 
-    holdout_experiment(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
-                              pad_cells=True, resize_cells=False, class_count=3,
-                              logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=16, learning_rate=0.0005)
-
-
+    holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
+    pad_cells = True, resize_cells = False, class_count = 3,
+    logdir = output_path, verbose = False, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 16, learning_rate = 0.0005)
 

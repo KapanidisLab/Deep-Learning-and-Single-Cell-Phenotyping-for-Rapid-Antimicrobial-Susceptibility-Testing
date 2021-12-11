@@ -510,7 +510,7 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
 
 
     if verbose:
-        inspect_model_data(traingen[0][0], traingen[0][1], [0,1,2])
+        inspect_model_data(traingen[0][0], traingen[0][1], [0,1])
 
     #Savefile name
 
@@ -571,6 +571,45 @@ def rescale_intensity(img):
     return skimage.exposure.rescale_intensity(img, in_range=(p1, p99))
 
 
+def histeq16bit(image):
+    '''16 bit histogram equalization'''
+
+    def get_histogram(image, bins):
+        """calculates and returns histogram"""
+        # array with size of bins, set to zeros
+        histogram = np.zeros(bins)
+        # loop through pixels and sum up counts of pixels
+        for pixel in image:
+            histogram[pixel] += 1
+        return histogram
+
+    def cumsum(a):
+        """cumulative sum function"""
+        a = iter(a)
+        b = [next(a)]
+        for i in a:
+            b.append(b[-1] + i)
+
+        return np.array(b)
+
+    """histogram equalisation for 16 bit images"""
+    img = np.asarray(image)
+    flat = img.flatten()
+    hist = get_histogram(flat, (2 ** 16) - 1)
+    cs = cumsum(hist)
+
+    # numerator & denomenator
+    nj = (cs - cs.min()) * (2 ** 16) - 1
+    N = cs.max() - cs.min()
+
+    # re-normalize the cdf
+    cs = nj / N
+    cs = cs.astype('uint16')
+
+    img_new = cs[flat]
+    img_new = np.reshape(img_new, image.shape)
+
+    return img_new
 
 
 
@@ -700,10 +739,8 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
 
     # Load and pre-process data
     if resize_cells:
-        print('Resizing cell images to {}'.format(size_target))
         X_test = [resize(img, size_target) for img in X_test]
     elif pad_cells:
-        print('Padding cell images to {}'.format(size_target))
         X_test = [pad_to_size(img,size_target) for img in X_test]
 
 

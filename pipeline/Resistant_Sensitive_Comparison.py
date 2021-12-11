@@ -146,11 +146,11 @@ if __name__ == '__main__':
 
     annotations_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_Clinical_All')
 
-    resistant_strain_ID = 'L13834'
-    sensitive_strain_ID = 'L64017'
+    resistant_strain_ID = 'L13034'
+    sensitive_strain_ID = 'L48480'
 
     resistant_path = os.path.join(get_parent_path(1),'Data', 'Clinical_strains', '13034' )
-    sensitive_path = os.path.join(get_parent_path(1),'Data', 'Clinical_strains', '64017' )
+    sensitive_path = os.path.join(get_parent_path(1),'Data', 'Clinical_strains', '48480' )
 
     output_path = os.path.join(get_parent_path(1), 'Data', 'Clinical_Resistant_Sensitive_Comparison')
     cond_IDs = ['CIP+ETOH']

@@ -72,7 +72,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -182,16 +182,14 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         kwargs = {'modelpath':os.path.join(logdir, dt+'.h5'), 'X_test':X_test, 'y_test':y_test,'mean':np.asarray([0, 0, 0]),
                   'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells, 'class_id_to_name':cells_train['class_id_to_name'],
-                  'normalise_CM':True, 'queue':queue}
+                  'normalise_CM':False, 'queue':queue}
 
         p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
         p.start()
         CM_split = queue.get()
         p.join()
 
-
         CM_total = CM_total+CM_split
-
 
     #Map classnames to class labels
     labels = [0]*len(cells_train['class_id_to_name']) #initialise array
@@ -207,7 +205,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     plt.show()
 
 if __name__ == '__main__':
-    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_400perexp')
+    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_300perexp')
     cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
