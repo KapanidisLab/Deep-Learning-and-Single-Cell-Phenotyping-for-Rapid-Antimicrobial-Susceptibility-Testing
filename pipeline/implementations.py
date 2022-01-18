@@ -255,7 +255,11 @@ def Equalize_Channels(**kwargs):
 
     assert all(average_pix<=tolerance) #Assert average is 0
 
-
+def imgdims_tolist(arg):
+    if not isinstance(arg,tuple):
+        return [arg]
+    else:
+        return arg
 
 def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None, cond_IDs=None, image_channels=None, queue=None):
     ''' 
@@ -276,6 +280,9 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
         assert type(output_folder) == str
 
     (sz,sx,sy) = img_dims
+
+    #Transform to list in case of multiple input
+    [sz,sx,sy] = [imgdims_tolist(d) for d in (sz,sx,sy)]
 
     makedir(output_folder)
     warnings.filterwarnings("ignore", category=UserWarning)
@@ -325,18 +332,22 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                                 #If correctly identified, read, crop image, make composition filename
                                 img = skimage.io.imread(os.path.join(root, file))  # Load image
 
-                                if img.shape != img_dims:
+                                img_sz,img_sx,img_sy = img.shape
+
+
+
+                                if not all([img_sz in sz, img_sx in sx, img_sy in sy]):
                                     raise RuntimeError('ERROR - Image {} dimensions inconsistent with specification.'.format(os.path.join(root, file)))
 
                                 img = numpy.mean(img, axis=0)  # Average frames
 
                                 crop = crop_mapping[channel]
                                 if crop == 0:
-                                    img = img[:, 0:int(sy / int(2))]  # Crop FoV to remove unused half - keep left side
-                                    assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+                                    img = img[:, 0:int(img_sy / int(2))]  # Crop FoV to remove unused half - keep left side
+                                    assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
                                 elif crop == 1:
-                                    img = img[:, int(sy / int(2)):]  # Crop FoV to remove unused half - keep right side
-                                    assert img.shape == (sx, int(sy / 2)), 'Images cropped incorrectly'
+                                    img = img[:, int(img_sy / int(2)):]  # Crop FoV to remove unused half - keep right side
+                                    assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
 
 
                                 #Assemble file name

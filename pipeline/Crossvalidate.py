@@ -72,7 +72,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -172,6 +172,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         p.start()
         p.join()
 
+
         print()
         print('-------------------------------------')
         print('Evaluating split {}'.format(i))
@@ -182,7 +183,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         kwargs = {'modelpath':os.path.join(logdir, dt+'.h5'), 'X_test':X_test, 'y_test':y_test,'mean':np.asarray([0, 0, 0]),
                   'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells, 'class_id_to_name':cells_train['class_id_to_name'],
-                  'normalise_CM':False, 'queue':queue}
+                  'normalise_CM':True, 'queue':queue}
 
         p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
         p.start()
@@ -198,19 +199,13 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
     #Display final
 
-    CM_normal = CM_total/np.sum(CM_total, axis=0)
+    CM_normal = CM_total/np.sum(CM_total, axis=1)
 
     disp = ConfusionMatrixDisplay(confusion_matrix=CM_normal, display_labels = labels)
     disp.plot(cmap='Reds')
     plt.show()
 
 if __name__ == '__main__':
-    output_path = os.path.join(get_parent_path(1), 'Data', 'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_300perexp')
-    cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
-    image_channels = ['NR', 'DAPI']
-    img_dims = (30, 684, 840)
-
-    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_300PerExperiment_Improved_metric')
 
     experiment0 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_0_18_08_20')
     experiment1 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_1_25_03_21')
@@ -219,13 +214,34 @@ if __name__ == '__main__':
     experiment4 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_5_19_10_21')
     experiment5 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_6_25_10_21')
 
-    experiments_path_list = [experiment0,experiment1,experiment2,experiment3,experiment4,experiment5]
+    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric')
 
+    image_channels = ['NR', 'DAPI']
+    img_dims = (30, 684, 840)
+    experiments_path_list = [experiment0,experiment1,experiment2,experiment3,experiment4,experiment5]
     size_target = (64,64,3)
 
-    logdir = os.path.join(get_parent_path(1),'Crossvalidate_06_12_21_registration_fixed_histeq_brightnessaug_misalign_gaussnoise_400perexp')
+    #--------------------------------------------------WT_RIF-----------------------------------------------------------
+
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_Test')
+    cond_IDs = ['WT+ETOH', 'RIF+ETOH']
+
+    logdir = os.path.join(get_parent_path(1),'Crossvalidate_Test')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
-                              pad_cells=True, resize_cells=False, class_count=3,
+                              pad_cells=True, resize_cells=False, class_count=2,
+                              logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
+                              batch_size=64, learning_rate=0.0005)
+
+
+    #--------------------------------------------------WT_CIP-----------------------------------------------------------
+
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_19_12_21_final_binary_WT0_CIP1')
+    cond_IDs = ['WT+ETOH', 'CIP+ETOH']
+
+    logdir = os.path.join(get_parent_path(1),'Crossvalidate_19_12_21_final_binary_WT0_CIP1')
+
+    crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
+                              pad_cells=True, resize_cells=False, class_count=2,
                               logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
                               batch_size=16, learning_rate=0.0005)

@@ -149,8 +149,16 @@ if __name__ == '__main__':
     resistant_strain_ID = 'L13034'
     sensitive_strain_ID = 'L48480'
 
-    resistant_path = os.path.join(get_parent_path(1),'Data', 'Clinical_strains', '13034' )
-    sensitive_path = os.path.join(get_parent_path(1),'Data', 'Clinical_strains', '48480' )
+
+    experiment0 = os.path.join(get_parent_path(1), 'Data', 'Clinical_strains', 'Repeat_0_10_11_21+Repeat_1_18_11_21')
+    #experiment1 = os.path.join(get_parent_path(1), 'Data', 'Clinical_strains', 'Repeat_2_03_12_21+Repeat_5_06_12_21')
+    #experiment2 = os.path.join(get_parent_path(1), 'Data', 'Clinical_strains', 'Repeat_3_04_12_21')
+
+    experiments = [experiment0]
+
+    resistant_paths = [os.path.join(exp,'13834') for exp in experiments]
+    sensitive_paths = [os.path.join(exp,'48480') for exp in experiments]
+
 
     output_path = os.path.join(get_parent_path(1), 'Data', 'Clinical_Resistant_Sensitive_Comparison')
     cond_IDs = ['CIP+ETOH']
@@ -158,7 +166,7 @@ if __name__ == '__main__':
     img_dims = (30, 684, 840)
 
     resistant_sensitive_comparison(output_path=output_path, cond_ID=cond_IDs, image_channels=image_channels, img_dims=img_dims,
-                                   resistant_path=resistant_path, sensitive_path=sensitive_path, resistant_strain_ID=resistant_strain_ID,
+                                   resistant_path=resistant_paths, sensitive_path=sensitive_paths, resistant_strain_ID=resistant_strain_ID,
                                    sensitive_strain_ID=sensitive_strain_ID, annotations_path=annotations_path)
 
 

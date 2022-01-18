@@ -36,6 +36,7 @@ if __name__ == '__main__':
                 mask = masks[:,:,j]
                 phenotype = phenotypes[j]
 
+
                 colour = mappings[phenotype]['colour']
                 name = mappings[phenotype]['name']
 
@@ -60,21 +61,22 @@ if __name__ == '__main__':
                 image = img_as_ubyte(image) #8bit conversion
                 ax[1].imshow(image)
                 ax[0].imshow(rgb2gray(image),cmap=plt.cm.gray)
+                ax[0].set_title(str(title), fontsize=22, loc='left')
 
-            plt.title(str(title),fontsize=22)
+
             plt.show()
 
     #Paths
-    filename = "210403_1_AMR_combined_3_CIP+ETOH_posXY0.tif"
-    image_path = os.path.join(get_parent_path(1), "Data" , "Test_4_multichannel_collected", "CIP+ETOH", filename)
-    segmenter_weights = os.path.join(get_parent_path(1), "predconfig_1+320211013T2353","mask_rcnn_predconfig_1+3.h5")
-    classifier_weights = os.path.join(get_parent_path(1),"predconfig_1+320211013T2353","DenseNet121 BS 16, LR 0.0005, epochs 100, opt NAdam.h5")
+    filename = "211118_1_17667_AMR_combined_3_WT+ETOH_posXY1.tif"
+    folder = '17667'
+    image_path = os.path.join(os.path.join(r'C:\Users\zagajewski\Desktop\Deployment',folder),filename)
+    segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
+    classifier_weights = r'C:\Users\zagajewski\Desktop\Deployment\WT0_CIP1_holdout.h5'
 
     #Mappings from training set
-    map_WT = {'colour': 'orangered', 'name': 'WT'}
-    map_RIF = {'colour': 'dodgerblue', 'name': 'RIF'}
-    map_CIP = {'colour': 'lawngreen', 'name': 'CIP'}
-    mapping = {0:map_WT, 1:map_RIF, 2:map_CIP}
+    map_resistant = {'colour': 'orangered', 'name': 'R'}
+    map_sensitive = {'colour': 'dodgerblue', 'name': 'S'}
+    mapping = {0:map_resistant, 1:map_sensitive}
 
 
     #Load image
@@ -103,7 +105,7 @@ if __name__ == '__main__':
     #Go through all images
     classifications =[]
     for img_cells in cells:
-        prediction,model = predict(modelpath=classifier_weights, X_test=img_cells, mean=mean, resize_target=resize_target)
+        prediction,_,model = predict(modelpath=classifier_weights, X_test=img_cells, mean=mean, size_target=resize_target,pad_cells=True, resize_cells=False)
         classifications.append(prediction)
 
     #Show results

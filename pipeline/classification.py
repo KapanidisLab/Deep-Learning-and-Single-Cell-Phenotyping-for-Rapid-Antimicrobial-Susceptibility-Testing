@@ -5,6 +5,7 @@ import numpy as np
 import os
 import sys
 
+import skimage
 import tensorflow
 from scipy.ndimage.filters import gaussian_filter
 from helpers import *
@@ -168,6 +169,7 @@ def cells_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
         #Get condition ID from image result, try to match to supplied identifiers
         filename = image_result['filename']
         matched_condID = False
+        matched = False
 
         for cond_ID in cond_IDs:
 
@@ -406,7 +408,6 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     '''
 
 
-    from keras.preprocessing.image import ImageDataGenerator
     from keras.utils import to_categorical
     from skimage.transform import resize
     import keras.callbacks
@@ -437,9 +438,15 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     if resize_cells:
         print('Resizing cell images to {}'.format(size_target))
         X_train = [resize(img, size_target) for img in X_train]
+        X_train = [skimage.img_as_uint(img) for img in X_train]
     elif pad_cells:
         print('Padding cell images to {}'.format(size_target))
         X_train = [pad_to_size(img,size_target) for img in X_train]
+
+    #Histogram equalize
+   # print('Equalizing histograms')
+    #X_train = [histeq16bit(img) for img in X_train]
+
 
     X_train = skimage.img_as_ubyte(np.asarray(X_train))
     y_train = to_categorical(y_train)
@@ -510,7 +517,7 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
 
 
     if verbose:
-        inspect_model_data(traingen[0][0], traingen[0][1], [0,1])
+        inspect_model_data(np.asarray(traingen[0][0],dtype='uint8'), np.asarray(traingen[0][1],dtype='uint8'), [0,1])
 
     #Savefile name
 
@@ -530,7 +537,7 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
 
     callbacks = [
         keras.callbacks.TensorBoard(log_dir=logdir,
-                                    histogram_freq=10, write_graph=False, write_images=True),
+                                    histogram_freq=0, write_graph=False, write_images=False),
         keras.callbacks.ModelCheckpoint(os.path.join(logdir,checkpoint_name),
                                         verbose=0, save_weights_only=False, save_best_only=True, monitor='loss',
                                         mode='min'),
@@ -575,12 +582,15 @@ def histeq16bit(image):
     '''16 bit histogram equalization'''
 
     def get_histogram(image, bins):
-        """calculates and returns histogram"""
-        # array with size of bins, set to zeros
-        histogram = np.zeros(bins)
-        # loop through pixels and sum up counts of pixels
-        for pixel in image:
-            histogram[pixel] += 1
+        try:
+            """calculates and returns histogram"""
+            # array with size of bins, set to zeros
+            histogram = np.zeros(bins)
+            # loop through pixels and sum up counts of pixels
+            for pixel in image:
+                histogram[pixel] += 1
+        except IndexError as err:
+            print('stop')
         return histogram
 
     def cumsum(a):
@@ -595,11 +605,11 @@ def histeq16bit(image):
     """histogram equalisation for 16 bit images"""
     img = np.asarray(image)
     flat = img.flatten()
-    hist = get_histogram(flat, (2 ** 16) - 1)
+    hist = get_histogram(flat, (2 ** 16))
     cs = cumsum(hist)
 
     # numerator & denomenator
-    nj = (cs - cs.min()) * (2 ** 16) - 1
+    nj = (cs - cs.min()) * (2 ** 16 - 1)
     N = cs.max() - cs.min()
 
     # re-normalize the cdf
@@ -621,7 +631,7 @@ def pad_to_size(image,size_target):
 
     if sy > size_target[0] or sx > size_target[1]:
         print('Resizing cell dimensions {} to {}'.format(image.shape, size_target))
-        return resize(image, size_target)
+        return skimage.img_as_uint(resize(image, size_target))
 
     total_sy = abs(sy-size_target[0])
     total_sx = abs(sx-size_target[1])
@@ -648,11 +658,11 @@ def pad_to_size(image,size_target):
         new_img[:,:,i] = np.pad(image[:,:,i], ((int(sy_before), int(sy_after)), (int(sx_before), int(sx_after))), mode='constant',constant_values=0)
 
     assert new_img.shape == size_target
+    assert new_img.dtype == 'uint16'
 
-    return skimage.util.img_as_float64(new_img)
+    return new_img
 
-
-def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None, resize_target = None, class_count = None, logdir = None ):
+def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None, size_target = None, class_count = None, pad_cells=False, resize_cells=False, logdir = None):
 
     #Compute permutations of main parameters, call train() for each permutation. Wrap in multiprocessing to force GPU
     #memory release between runs, which otherwise doesn't happen
@@ -675,8 +685,9 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
         makedir(logdir_run)
 
         kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'batch_size': batch_size,
-                  'learning_rate': learning_rate, 'epochs': epochs, 'resize_target': resize_target,
-                  'class_count': class_count, 'logdir': logdir_run, 'optimizer': optimizer, 'dt_string': dt_string, 'verbose':False}
+                  'learning_rate': learning_rate, 'epochs': epochs, 'size_target': size_target,
+                  'class_count': class_count, 'logdir': logdir_run, 'optimizer': optimizer, 'dt_string': dt_string, 'verbose':False,
+                  'pad_cells': pad_cells, 'resize_cells': resize_cells}
 
         p = multiprocessing.Process(target=train, kwargs=kwargs)
         p.start()
@@ -697,7 +708,7 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
     if pad_cells: assert not resize_cells
     elif resize_cells: assert not pad_cells
 
-    result,model = predict(modelpath=modelpath,X_test=X_test, mean=mean, size_target=size_target, pad_cells=pad_cells, resize_cells=resize_cells)
+    result,_,model = predict(modelpath=modelpath,X_test=X_test, mean=mean, size_target=size_target, pad_cells=pad_cells, resize_cells=resize_cells)
 
     #Map classnames to class labels
     labels = [0]*len(class_id_to_name) #initialise array
@@ -715,7 +726,7 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
     disp.plot(cmap='Blues')
     plt.show()
 
-    display_misclassifications(result,y_test,X_test,class_id_to_name,10,resize_cells=resize_cells, pad_cells=pad_cells, size_target=size_target)
+    #display_misclassifications(result,y_test,X_test,class_id_to_name,10,resize_cells=resize_cells, pad_cells=pad_cells, size_target=size_target)
 
     if queue is not None:
         queue.put(CM)
@@ -743,7 +754,6 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
     elif pad_cells:
         X_test = [pad_to_size(img,size_target) for img in X_test]
 
-
     # Load model
     if isinstance(modelpath,str):
         model = load_model(modelpath)
@@ -761,9 +771,10 @@ def predict(modelpath=None, X_test=None, mean=None, size_target=None, pad_cells=
     X_test = X_test - mean
 
     result = model.predict(X_test)
-    result = np.argmax(result,axis=1) #Decode from one-hot to integer
+    class_result = np.argmax(result,axis=1) #Decode from one-hot to integer
+    class_confidence = np.max(result,axis=1)
 
-    return result,model #Return result and model instance used
+    return class_result,class_confidence,model #Return result and model instance used
 
 
 def display_misclassifications(result,y_test,X_test,class_id_to_name,n, resize_cells=None, pad_cells=None, size_target=None):

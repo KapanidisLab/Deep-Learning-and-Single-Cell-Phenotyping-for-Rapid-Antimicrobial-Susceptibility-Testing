@@ -120,6 +120,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     p.start()
     p.join()
 
+
     print()
     print('-------------------------------------')
     print('Evaluating on holdout')
@@ -138,10 +139,10 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
 
 if __name__ == '__main__':
 
-    output_path = os.path.join(get_parent_path(1), 'Data', 'LabStrains_holdout')
-    cond_IDs = ['WT+ETOH', 'RIF+ETOH', 'CIP+ETOH']
+    output_path = os.path.join(get_parent_path(1), 'Data', 'LabStrains_holdout_CIP+WT')
+    cond_IDs = ['WT+ETOH', 'CIP+ETOH']
     image_channels = ['NR', 'DAPI']
-    img_dims = (30, 684, 840)
+    img_dims = (30, 684, (840,856))
 
     annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric')
 
@@ -161,6 +162,6 @@ if __name__ == '__main__':
     logdir = output_path
 
     holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
-    pad_cells = True, resize_cells = False, class_count = 3,
-    logdir = output_path, verbose = False, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 16, learning_rate = 0.0005)
+    pad_cells = True, resize_cells = False, class_count = 2,
+    logdir = output_path, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 16, learning_rate = 0.0005)
 

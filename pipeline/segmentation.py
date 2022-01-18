@@ -276,8 +276,14 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
     DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0 #Select device to execute on
 
     with tf.device(DEVICE):
-        model = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
-        model.load_weights(weights, by_name=True)
+
+        #Allow option to load model outside of function call
+        if isinstance(weights, modellib.MaskRCNN):
+            model = weights
+        else:
+
+            model = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
+            model.load_weights(weights, by_name=True)
 
         for i in range(image_count):
 

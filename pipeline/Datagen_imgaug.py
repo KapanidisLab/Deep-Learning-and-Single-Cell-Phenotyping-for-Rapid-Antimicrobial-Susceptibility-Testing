@@ -14,7 +14,10 @@ class DataGenerator(keras.utils.Sequence):
     # Generates data for Keras
     def __init__(self, X_train, y_train,
                  batch_size=32, shuffle=True, augment=False, aug1 = None, aug2 = None):
-        
+
+        print('DataGenerator - supplied {} images, batch size {}'.format(len(X_train), batch_size))
+        print('DataGenerator - approx {} batches available.'.format(np.ceil(len(X_train)/batch_size)))
+
         self.X_train = X_train
         self.y_train = y_train
 
@@ -23,7 +26,10 @@ class DataGenerator(keras.utils.Sequence):
 
         print('DataGenerator - generating images of size {}'.format(self.imshape))
 
-        (_,self.label_size) = y_train.shape
+        if len(y_train.shape) == 1:
+            self.label_size = 1
+        else:
+            (_,self.label_size) = y_train.shape
 
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -45,7 +51,11 @@ class DataGenerator(keras.utils.Sequence):
         # Generate indexes of the batch
         indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         images = [self.X_train[k,:,:,:] for k in indexes]
-        annots = [self.y_train[k,:] for k in indexes]
+
+        if self.label_size == 1:
+            annots = [self.y_train[k] for k in indexes]
+        else:
+            annots = [self.y_train[k,:] for k in indexes]
 
         X, y = self.__data_generation(images, annots, self.imshape)
 

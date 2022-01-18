@@ -309,8 +309,59 @@ def fetch_image(image_dir, filename):
 
     return image
 
+def summarize_triplet_loss(history, plot_title):
+    '''Loss plotter suitable for similarity model training.'''
+
+
+    fig, axs = plt.subplots(6, 1,figsize=(3*3,5*3))
+    fig.suptitle(plot_title, y=1.05)
+
+    #fig.subplots_adjust(top=0.65)
+
+    # plot loss
+    axs[0].set_title(plot_title)
+    axs[0].plot(history.history['triplet_semihard_loss'], color='blue', label='train')
+    axs[0].plot(history.history['val_triplet_semihard_loss'], color='orange', label='validation')
+    axs[0].set_xlabel('Epoch')
+    axs[0].set_ylabel('Semihard Triplet Loss')
+    axs[0].legend(loc="upper right")
+
+    axs[1].plot(history.history['mean2mean'], color='blue', label='train')
+    axs[1].plot(history.history['val_mean2mean'], color='orange', label='validation')
+    axs[1].set_xlabel('Epoch')
+    axs[1].set_ylabel('Mean2Mean')
+    axs[1].legend(loc="upper left")
+
+    axs[2].plot(history.history['WT2WT_mean'], color='blue', label='train')
+    axs[2].plot(history.history['val_WT2WT_mean'], color='orange', label='validation')
+    axs[2].set_xlabel('Epoch')
+    axs[2].set_ylabel('WT2WT')
+    axs[2].legend(loc="upper right")
+
+    axs[3].plot(history.history['CIP2CIP_mean'], color='blue', label='train')
+    axs[3].plot(history.history['val_CIP2CIP_mean'], color='orange', label='validation')
+    axs[3].set_xlabel('Epoch')
+    axs[3].set_ylabel('CIP2CIP')
+    axs[3].legend(loc="upper right")
+
+    axs[4].plot(history.history['WT2CIP_mean'], color='blue', label='train')
+    axs[4].plot(history.history['val_WT2CIP_mean'], color='orange', label='validation')
+    axs[4].set_xlabel('Epoch')
+    axs[4].set_ylabel('WT2CIP')
+    axs[4].legend(loc="upper left")
+
+    axs[5].plot(history.history['CIP2WT_mean'], color='blue', label='train')
+    axs[5].plot(history.history['val_CIP2WT_mean'], color='orange', label='validation')
+    axs[5].set_xlabel('Epoch')
+    axs[5].set_ylabel('CIP2WT')
+    axs[5].legend(loc="upper left")
+
+
+    fig.tight_layout()
+    plt.show()
+
 def summarize_diagnostics(history, plot_title):
-    #Basic plotting from keras history object
+    '''Loss and accuracy plotter suitable for '''
 
     fig, axs = plt.subplots(2, 1)
     fig.suptitle(plot_title, y=1.05)
@@ -368,8 +419,8 @@ def inspect_model_data(X, y, n):
             img = imgs[j]
 
             #Stretch contrast
-            p2, p98 = np.percentile(img, (2, 98))
-            img = skimage.exposure.rescale_intensity(img, in_range=(p2, p98))
+            #p2, p98 = np.percentile(img, (2, 98))
+            #img = skimage.exposure.rescale_intensity(img, in_range=(p2, p98))
 
             img = skimage.img_as_ubyte(img)  # Recast for imshow
             title = 'Label: ' + str(unique_y)
