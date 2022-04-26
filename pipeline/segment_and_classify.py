@@ -21,7 +21,9 @@ if __name__ == '__main__':
 
         for i,seg in enumerate(segmentations):
 
-            fig, ax = plt.subplots(1,2, figsize=(16,16))
+            fig, ax = plt.subplots(1,2, figsize=(16,16), constrained_layout=True)
+            fig2, ax2 = plt.subplots(1,1,figsize=(16,16), constrained_layout=True)
+
             boxes = seg['rois']
             scores = seg['scores']
             masks = seg['masks']
@@ -52,26 +54,40 @@ if __name__ == '__main__':
                     p = Polygon(verts, facecolor="none", edgecolor=colour,linewidth=1.5)
                     ax[0].add_patch(p)
 
-                #Caption
-                if show_caption:
-                    caption = "{}".format(name)
-                    ax[0].text(x1, y1 + 8, caption, color='w', size=11, backgroundcolor="none")
+                    #Copy over to other figure
 
-                #Plot original image unchanged, and beside it grayscaled and with annotations
-                image = img_as_ubyte(image) #8bit conversion
-                ax[1].imshow(image)
-                ax[0].imshow(rgb2gray(image),cmap=plt.cm.gray)
+                    pp = Polygon(verts, facecolor="none", edgecolor=colour,linewidth=1.5)
+                    ax2.add_patch(pp)
+
+            #Caption
+            if show_caption:
+                caption = "{}".format(name)
+                ax[0].text(x1, y1 + 8, caption, color='w', size=11, backgroundcolor="none")
+
+            #Plot original image unchanged, and beside it grayscaled and with annotations
+            image = img_as_ubyte(image) #8bit conversion
+            ax[1].imshow(image)
+
+            ax[0].imshow(rgb2gray(image),cmap=plt.cm.gray)
+
+            if title:
                 ax[0].set_title(str(title), fontsize=22, loc='left')
 
+            ax[0].axis('off')
+            ax[1].axis('off')
 
+            #Show grayscale with annotations only
+            ax2.imshow(rgb2gray(image),cmap=plt.cm.gray)
+            if title:
+                ax2.set_title(str(title), fontsize=22, loc='left')
+            ax2.axis('off')
             plt.show()
 
     #Paths
-    filename = "211118_1_17667_AMR_combined_3_WT+ETOH_posXY1.tif"
-    folder = '17667'
-    image_path = os.path.join(os.path.join(r'C:\Users\zagajewski\Desktop\Deployment',folder),filename)
+    filename = "220317_1_L78172_NA_AMR_combined_1_NA_posXY20.tif"
+    image_path = os.path.join(r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Classification_Distribution_78172\Collected\NA',filename)
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
-    classifier_weights = r'C:\Users\zagajewski\Desktop\Deployment\WT0_CIP1_holdout.h5'
+    classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
 
     #Mappings from training set
     map_resistant = {'colour': 'orangered', 'name': 'R'}
@@ -109,4 +125,4 @@ if __name__ == '__main__':
         classifications.append(prediction)
 
     #Show results
-    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=img, show_caption=True, title=filename)
+    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=img, show_caption=False, title=None)

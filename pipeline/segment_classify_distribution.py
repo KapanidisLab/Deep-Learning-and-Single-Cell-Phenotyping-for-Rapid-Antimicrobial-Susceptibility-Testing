@@ -9,6 +9,7 @@ from skimage.io import imread
 from segmentation import *
 from classification import *
 from keras.models import load_model
+from Resistant_Sensitive_Comparison import amend_class_labels
 
 def segment_and_classify(img=None, segmenter=None, classifier=None,filename=None):
     # Create an image for segmentation, fill 3 channels with NR
@@ -85,10 +86,13 @@ def plot_distributions(classifications=None, confidences=None, mappings=None, ti
         print('Number of detections = {}'.format(len(confidences_cid)))
         print('Plotting histogram...')
 
-    plt.legend(loc = 'upper left')
+    plt.legend(loc = 'upper left', fontsize=16)
     plt.title(title)
-    plt.xlabel('Detection Confidence')
-    plt.ylabel('Normalised Frequency Density')
+    plt.xlabel('Detection Confidence', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.ylabel('Normalised Frequency Density', fontsize=18)
+    plt.tight_layout()
     plt.show()
 
 
@@ -98,20 +102,22 @@ def plot_distributions(classifications=None, confidences=None, mappings=None, ti
 if __name__ == '__main__':
 
     #Paths
-    speciesID = '48480'
+    data_main = r'C:\Users\zagajewski\Desktop\Conor images'
+    speciesID = r'78172'
+    repeatID = r'renamed'
 
-    data_path = os.path.join(os.path.join(r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Clinical_strains\Repeat_0_10_11_21+Repeat_1_18_11_21',speciesID))
+    data_path = os.path.join(os.path.join(data_main,repeatID,speciesID))
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
-    classifier_weights = r'C:\Users\zagajewski\Desktop\Deployment\WT0_RIF1_holdout.h5'
+    classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
     output = r'C:\Users\zagajewski\PycharmProjects\AMR\Data'
 
 
-    cond_IDs = ['WT+ETOH', 'RIF+ETOH']
+    cond_IDs = ['NA', 'CIP']
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
 
-    map_WT = {'colour': 'orangered', 'name': 'WT'}
-    map_CIP = {'colour': 'forestgreen', 'name': 'RIF'}
+    map_WT = {'colour': 'orangered', 'name': 'Untreated'}
+    map_CIP = {'colour': 'dodgerblue', 'name': 'CIP'}
     mapping = {0:map_WT, 1:map_CIP}
 
 
@@ -124,9 +130,9 @@ if __name__ == '__main__':
 
     #Assemble images
     pipeline = ProcessingPipeline(data_path, 'NIM')
-    pipeline.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                  crop_mapping={'DAPI': 0, 'NR': 0},
-                  output_folder=output_segregated)
+    #pipeline.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+     #             crop_mapping={'DAPI': 0, 'NR': 0},
+      #            output_folder=output_segregated)
     pipeline.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected,
                      registration_target=0)
 

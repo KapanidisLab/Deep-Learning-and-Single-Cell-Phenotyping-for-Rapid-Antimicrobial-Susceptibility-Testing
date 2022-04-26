@@ -10,10 +10,13 @@ from tensorflow.keras.backend import clear_session
 from sklearn.metrics import ConfusionMatrixDisplay
 from distutils.dir_util import copy_tree
 import multiprocessing
+import seaborn as sns
+from Resistant_Sensitive_Comparison import amend_class_labels
 
 def crossvalidate_experiments(output_path=None, experiments_path_list=None, annotations_path=None, size_target=None,
                               pad_cells=False, resize_cells=False, class_count=None,
-                              logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None):
+                              logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None,
+                              colour_mapping=None):
 
     #Make output folder
     makedir(output_path)
@@ -72,7 +75,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -98,20 +101,20 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 
         local_pipeline_train = pipeline(train_folder, 'NIM')
-        local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                           crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+        #local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+         #                  crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
         local_pipeline_train.path = output_segregated_train
-        local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
-                               registration_target=0)
+        #local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
+         #                      registration_target=0)
 
         data_sources = [os.path.join(output_collected_train,condition) for condition in cond_IDs]
         annotation_sources = [os.path.join(os.path.join(annotations_path,condition),'annots') for condition in cond_IDs]
 
         dataset_output_train = os.path.join(split_path,'Dataset_Train')
 
-        local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
-                             annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
-                             validation_size=0, seed=42)
+        #local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
+         #                    annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
+          #                   validation_size=0, seed=42)
 
 
         #Prepare test data
@@ -121,19 +124,19 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         output_collected_test = os.path.join(split_path,'Collected_Test')
 
         local_pipeline_test = pipeline(test_folder, 'NIM')
-        local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                            crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
+        #local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+         #                   crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
         local_pipeline_test.path = output_segregated_test
-        local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
-                              registration_target=0)
+        #local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
+         #                     registration_target=0)
 
         data_sources = [os.path.join(output_collected_test, condition) for condition in cond_IDs]
 
         dataset_output_test = os.path.join(split_path, 'Dataset_Test')
 
-        local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
-                             annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
-                             validation_size=0, seed=42)
+        #local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
+         #                    annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
+          #                   validation_size=0, seed=42)
 
 
         #Extract data
@@ -143,6 +146,16 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
             class_id=1)
         cells_train = classification.cells_from_struct(input=manual_struct_train, cond_IDs=cond_IDs, image_dir=output_collected_train,
                                         mode='masks')
+        cells_train = amend_class_labels(original_label='WT+ETOH',new_label='Untreated',new_id=0,cells=cells_train)
+
+        if 'CIP+ETOH' in cond_IDs:
+            cells_train = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_train)
+        elif 'RIF+ETOH' in cond_IDs:
+            cells_train = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_train)
+        else:
+            raise ValueError()
+
+
         X_train, _, y_train, _ = classification.split_cell_sets(input=cells_train, test_size=0, random_state=42)
 
         manual_struct_test = classification.struct_from_file(
@@ -151,6 +164,15 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         cells_test = classification.cells_from_struct(input=manual_struct_test, cond_IDs=cond_IDs, image_dir=output_collected_test,
                                        mode='masks')
+        cells_test = amend_class_labels(original_label='WT+ETOH',new_label='Untreated',new_id=0,cells=cells_test)
+
+        if 'CIP+ETOH' in cond_IDs:
+            cells_test = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_test)
+        elif 'RIF+ETOH' in cond_IDs:
+            cells_test = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_test)
+        else:
+            raise ValueError()
+
         _, X_test, _, y_test = classification.split_cell_sets(input=cells_test, test_size=1, random_state=42)
 
         dt = 'MODE - {} BS - {} LR - {} SPLIT - {}'.format(mode,batch_size,learning_rate,i)
@@ -168,9 +190,9 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
                   'verbose':verbose, 'dt_string':dt
                   }
 
-        p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
-        p.start()
-        p.join()
+        #p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
+        #p.start()
+        #p.join()
 
 
         print()
@@ -180,10 +202,9 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         print()
 
         queue = multiprocessing.Queue()
-
         kwargs = {'modelpath':os.path.join(logdir, dt+'.h5'), 'X_test':X_test, 'y_test':y_test,'mean':np.asarray([0, 0, 0]),
                   'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells, 'class_id_to_name':cells_train['class_id_to_name'],
-                  'normalise_CM':True, 'queue':queue}
+                  'normalise_CM':False, 'queue':queue, 'colour_mapping': colour_mapping}
 
         p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
         p.start()
@@ -194,16 +215,54 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
     #Map classnames to class labels
     labels = [0]*len(cells_train['class_id_to_name']) #initialise array
+    colour_mask = [0]*len(cells_train['class_id_to_name'])
     for elm in cells_train['class_id_to_name']:
         labels[elm['class_id']] = elm['name']
+        colour_mask[elm['class_id']] = colour_mapping[elm['name']]
 
     #Display final
 
-    CM_normal = CM_total/np.sum(CM_total, axis=1)
+    CM_normal = CM_total/np.sum(CM_total, axis=1) #Final percentage
+    CM_percentage = 100 * CM_normal #Raw category counts
 
-    disp = ConfusionMatrixDisplay(confusion_matrix=CM_normal, display_labels = labels)
-    disp.plot(cmap='Reds')
+
+    CM_total = np.asarray(np.rint(CM_total),dtype='int')
+    processed_counts = CM_total.flatten().tolist()
+    processed_counts = ['({})'.format(elm) for elm in processed_counts]
+    processed_counts = np.asarray(processed_counts).reshape((2, 2))
+
+    processed_percentage = np.asarray(np.rint(CM_percentage.flatten()), dtype='int').tolist()
+    processed_percentage = ['{}%'.format(elm) for elm in processed_percentage]
+    processed_percentage = np.asarray(processed_percentage).reshape((2, 2))
+
+    formatted_text = (np.asarray(["{}\n\n{}".format(
+        data, text) for text, data in zip(processed_counts.flatten(), processed_percentage.flatten())])).reshape(2, 2)
+
+    sns.set(font_scale=2.0)
+    fig,ax = plt.subplots(1,1,figsize=(6,6))
+    plt.tight_layout()
+    for i in range(len(colour_mask)):
+
+        mask = np.ones(CM_percentage.shape)
+        mask[:,i] = 0
+        sns.heatmap(CM_percentage,linewidths=2, linecolor="black",  ax=ax,annot=formatted_text, cbar=False, vmin=0,vmax=100, fmt='',cmap=colour_mask[i], mask=mask)
+
+
+    # labels, title and ticks
+    ax.set_xlabel('Predicted labels', fontsize=20)
+    ax.set_ylabel('True labels', fontsize=20)
+    ax.xaxis.set_ticklabels(labels, fontsize=20)
+    ax.yaxis.set_ticklabels(labels, fontsize=20)
+
+    ax.axhline(y=0, color='k', linewidth=3)
+    ax.axhline(y=CM_percentage.shape[1], color='k', linewidth=3)
+    ax.axvline(x=0, color='k', linewidth=3)
+    ax.axvline(x=CM_percentage.shape[0], color='k', linewidth=3)
+
+    plt.tight_layout()
     plt.show()
+
+
 
 if __name__ == '__main__':
 
@@ -223,25 +282,25 @@ if __name__ == '__main__':
 
     #--------------------------------------------------WT_RIF-----------------------------------------------------------
 
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_Test')
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_RIF')
     cond_IDs = ['WT+ETOH', 'RIF+ETOH']
 
-    logdir = os.path.join(get_parent_path(1),'Crossvalidate_Test')
+    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_RIF')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=2,
                               logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=64, learning_rate=0.0005)
+                              batch_size=64, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((145, 75, 60), input="husl")})
 
 
     #--------------------------------------------------WT_CIP-----------------------------------------------------------
 
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_19_12_21_final_binary_WT0_CIP1')
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_CIP')
     cond_IDs = ['WT+ETOH', 'CIP+ETOH']
 
-    logdir = os.path.join(get_parent_path(1),'Crossvalidate_19_12_21_final_binary_WT0_CIP1')
+    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_CIP')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=2,
                               logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=16, learning_rate=0.0005)
+                              batch_size=16, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CIP':sns.light_palette((260, 75, 60), input="husl")})

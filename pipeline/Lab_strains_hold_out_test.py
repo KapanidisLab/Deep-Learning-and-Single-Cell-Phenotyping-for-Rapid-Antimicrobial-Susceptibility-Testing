@@ -1,4 +1,5 @@
 from ProcessingPipeline import ProcessingPipeline as pipeline
+from Resistant_Sensitive_Comparison import amend_class_labels
 
 import os
 from pipeline.helpers import *
@@ -10,6 +11,7 @@ from tensorflow.keras.backend import clear_session
 from sklearn.metrics import ConfusionMatrixDisplay
 from distutils.dir_util import copy_tree
 import multiprocessing
+import seaborn as sns
 
 
 def holdout_test(output_path=None, training_path_list=None, test_path = None, annotations_path=None, size_target=None,
@@ -41,7 +43,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
 
     # Prepare train data
@@ -49,39 +51,39 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     output_collected_train = os.path.join(output_path, 'Collected_Train')
 
     local_pipeline_train = pipeline(training_path_list, 'NIM')
-    local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                              crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+    #local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+     #                         crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
     local_pipeline_train.path = output_segregated_train
-    local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
-                                 registration_target=0)
+    #local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
+     #                            registration_target=0)
 
     data_sources = [os.path.join(output_collected_train, condition) for condition in cond_IDs]
     annotation_sources = [os.path.join(os.path.join(annotations_path, condition), 'annots') for condition in cond_IDs]
 
     dataset_output_train = os.path.join(output_path, 'Dataset_Train')
 
-    local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
-                                annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
-                                validation_size=0, seed=42)
+    #local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
+     #                           annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
+      #                          validation_size=0, seed=42)
 
     # Prepare test data
     output_segregated_test = os.path.join(output_path, 'Segregated_Test')
     output_collected_test = os.path.join(output_path, 'Collected_Test')
 
     local_pipeline_test = pipeline(test_path, 'NIM')
-    local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                             crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
+    #local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+     #                        crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
     local_pipeline_test.path = output_segregated_test
-    local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
-                                registration_target=0)
+    #local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
+     #                           registration_target=0)
 
     data_sources = [os.path.join(output_collected_test, condition) for condition in cond_IDs]
 
     dataset_output_test = os.path.join(output_path, 'Dataset_Test')
 
-    local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
-                               annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
-                               validation_size=0, seed=42)
+    #local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
+     #                          annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
+      #                         validation_size=0, seed=42)
 
     # Extract data
     manual_struct_train = classification.struct_from_file(
@@ -90,6 +92,17 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     cells_train = classification.cells_from_struct(input=manual_struct_train, cond_IDs=cond_IDs,
                                                    image_dir=output_collected_train,
                                                    mode='masks')
+
+    # Amend label names for nicer display
+
+
+    cells_train = amend_class_labels(original_label='WT+ETOH', new_label='Untreated', new_id=0, cells=cells_train)
+
+    if 'CIP+ETOH' in cond_IDs:
+        cells_train = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_train)
+    elif 'RIF+ETOH' in cond_IDs:
+        cells_train = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_train)
+
     X_train, _, y_train, _ = classification.split_cell_sets(input=cells_train, test_size=0, random_state=42)
 
     manual_struct_test = classification.struct_from_file(
@@ -99,7 +112,16 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     cells_test = classification.cells_from_struct(input=manual_struct_test, cond_IDs=cond_IDs,
                                                   image_dir=output_collected_test,
                                                   mode='masks')
+
+    cells_test = amend_class_labels(original_label='WT+ETOH', new_label='Untreated', new_id=0, cells=cells_test)
+
+    if 'CIP+ETOH' in cond_IDs:
+        cells_test = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_test)
+    elif 'RIF+ETOH' in cond_IDs:
+        cells_test = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_test)
+
     _, X_test, _, y_test = classification.split_cell_sets(input=cells_test, test_size=1, random_state=42)
+
 
     dt = 'MODE - {} BS - {} LR - {} Holdout test'.format(mode, batch_size, learning_rate)
 
@@ -116,9 +138,9 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
               'verbose': verbose, 'dt_string': dt
               }
 
-    p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
-    p.start()
-    p.join()
+    #p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
+    #p.start()
+    #p.join()
 
 
     print()
@@ -131,7 +153,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
               'mean': np.asarray([0, 0, 0]),
               'size_target': size_target, 'pad_cells': pad_cells, 'resize_cells': resize_cells,
               'class_id_to_name': cells_train['class_id_to_name'],
-              'normalise_CM': True, 'queue': None}
+              'normalise_CM': True, 'queue': None, 'colour_mapping':{'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CIP':sns.light_palette((260, 75, 60), input="husl")}}
 
     p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
     p.start()
@@ -159,9 +181,9 @@ if __name__ == '__main__':
 
     size_target = (64,64,3)
 
-    logdir = output_path
+    logdir = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test'
 
     holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
     pad_cells = True, resize_cells = False, class_count = 2,
-    logdir = output_path, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 16, learning_rate = 0.0005)
+    logdir = logdir, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 16, learning_rate = 0.0005)
 

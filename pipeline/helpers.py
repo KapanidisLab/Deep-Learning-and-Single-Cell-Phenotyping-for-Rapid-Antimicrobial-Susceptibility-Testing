@@ -4,6 +4,7 @@ Created on Sun Apr 26 17:17:56 2020
 
 @author: Aleksander Zagajewski
 """
+import copy
 
 import matplotlib.pyplot as plt
 
@@ -313,48 +314,54 @@ def summarize_triplet_loss(history, plot_title):
     '''Loss plotter suitable for similarity model training.'''
 
 
-    fig, axs = plt.subplots(6, 1,figsize=(3*3,5*3))
+    fig, axs = plt.subplots(7, 1,figsize=(3*3,5*3))
     fig.suptitle(plot_title, y=1.05)
 
     #fig.subplots_adjust(top=0.65)
 
     # plot loss
     axs[0].set_title(plot_title)
-    axs[0].plot(history.history['triplet_semihard_loss'], color='blue', label='train')
-    axs[0].plot(history.history['val_triplet_semihard_loss'], color='orange', label='validation')
+    axs[0].plot(history['triplet_semihard_loss'], color='blue', label='train')
+    axs[0].plot(history['val_triplet_semihard_loss'], color='orange', label='validation')
     axs[0].set_xlabel('Epoch')
     axs[0].set_ylabel('Semihard Triplet Loss')
     axs[0].legend(loc="upper right")
 
-    axs[1].plot(history.history['mean2mean'], color='blue', label='train')
-    axs[1].plot(history.history['val_mean2mean'], color='orange', label='validation')
+    axs[1].plot(history['triplet_hard_loss'], color='blue', label='train')
+    axs[1].plot(history['val_triplet_hard_loss'], color='orange', label='validation')
     axs[1].set_xlabel('Epoch')
-    axs[1].set_ylabel('Mean2Mean')
+    axs[1].set_ylabel('Hard Triplet Loss')
     axs[1].legend(loc="upper left")
 
-    axs[2].plot(history.history['WT2WT_mean'], color='blue', label='train')
-    axs[2].plot(history.history['val_WT2WT_mean'], color='orange', label='validation')
+    axs[2].plot(history['mean2mean'], color='blue', label='train')
+    axs[2].plot(history['val_mean2mean'], color='orange', label='validation')
     axs[2].set_xlabel('Epoch')
-    axs[2].set_ylabel('WT2WT')
-    axs[2].legend(loc="upper right")
+    axs[2].set_ylabel('Mean2Mean')
+    axs[2].legend(loc="upper left")
 
-    axs[3].plot(history.history['CIP2CIP_mean'], color='blue', label='train')
-    axs[3].plot(history.history['val_CIP2CIP_mean'], color='orange', label='validation')
+    axs[3].plot(history['WT2WT_mean'], color='blue', label='train')
+    axs[3].plot(history['val_WT2WT_mean'], color='orange', label='validation')
     axs[3].set_xlabel('Epoch')
-    axs[3].set_ylabel('CIP2CIP')
+    axs[3].set_ylabel('WT2WT')
     axs[3].legend(loc="upper right")
 
-    axs[4].plot(history.history['WT2CIP_mean'], color='blue', label='train')
-    axs[4].plot(history.history['val_WT2CIP_mean'], color='orange', label='validation')
+    axs[4].plot(history['CIP2CIP_mean'], color='blue', label='train')
+    axs[4].plot(history['val_CIP2CIP_mean'], color='orange', label='validation')
     axs[4].set_xlabel('Epoch')
-    axs[4].set_ylabel('WT2CIP')
-    axs[4].legend(loc="upper left")
+    axs[4].set_ylabel('CIP2CIP')
+    axs[4].legend(loc="upper right")
 
-    axs[5].plot(history.history['CIP2WT_mean'], color='blue', label='train')
-    axs[5].plot(history.history['val_CIP2WT_mean'], color='orange', label='validation')
+    axs[5].plot(history['WT2CIP_mean'], color='blue', label='train')
+    axs[5].plot(history['val_WT2CIP_mean'], color='orange', label='validation')
     axs[5].set_xlabel('Epoch')
-    axs[5].set_ylabel('CIP2WT')
+    axs[5].set_ylabel('WT2CIP')
     axs[5].legend(loc="upper left")
+
+    axs[6].plot(history['CIP2WT_mean'], color='blue', label='train')
+    axs[6].plot(history['val_CIP2WT_mean'], color='orange', label='validation')
+    axs[6].set_xlabel('Epoch')
+    axs[6].set_ylabel('CIP2WT')
+    axs[6].legend(loc="upper left")
 
 
     fig.tight_layout()
@@ -385,6 +392,33 @@ def summarize_diagnostics(history, plot_title):
 
     fig.tight_layout()
     plt.show()
+
+
+def remove_edge_cells(segmentations):
+    '''Takes in a list of segmentations as produced by MRCNN. Remove all edge detections'''
+    output = []
+    for img_segmentation in segmentations:
+        (sy,sx,n) = img_segmentation['masks'].shape
+
+        rois = img_segmentation['rois']
+
+        (y1,x1,y2,x2) = rois[:,0], rois[:,1], rois[:,2], rois[:,3]
+
+        #Find bboxes that are on image boundary
+        boolmap = ~(y1==0) * ~(y1>=sy) * ~(y2==0) * ~(y2>=sy) * ~(x1==0) * ~(x1>=sx) * ~(x2==0) * ~(x2>=sx)
+
+        idx = np.where(boolmap)[0]
+
+        #print('Removing {}/{} cells on image boundary'.format(n-len(idx),n))
+
+        update = {'rois':rois[idx,:], 'class_ids':img_segmentation['class_ids'][idx], 'scores':img_segmentation['scores'][idx], 'masks':img_segmentation['masks'][:,:,idx]}
+
+        new_segmentation = copy.deepcopy(img_segmentation)
+        new_segmentation.update(update)
+        output.append(new_segmentation)
+
+    return output, n-len(idx)
+
 
 def inspect_model_data(X, y, n):
 

@@ -16,6 +16,9 @@ from keras.applications.vgg16 import VGG16
 from keras.applications.resnet50 import ResNet50
 from keras.applications.densenet import DenseNet121
 from keras.optimizers import SGD, Adam, Nadam
+import seaborn as sns
+from matplotlib.colors import ListedColormap
+
 
 def struct_from_file(dataset_folder=None, class_id = 1):
 
@@ -443,11 +446,6 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
         print('Padding cell images to {}'.format(size_target))
         X_train = [pad_to_size(img,size_target) for img in X_train]
 
-    #Histogram equalize
-   # print('Equalizing histograms')
-    #X_train = [histeq16bit(img) for img in X_train]
-
-
     X_train = skimage.img_as_ubyte(np.asarray(X_train))
     y_train = to_categorical(y_train)
 
@@ -693,10 +691,9 @@ def optimize(mode = None, X_train = None, y_train = None, parameter_grid = None,
         p.start()
         p.join()
 
-def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=None, class_id_to_name=None, pad_cells=False, resize_cells=False, normalise_CM=True, queue=None):
+def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=None, class_id_to_name=None, pad_cells=False, resize_cells=False, normalise_CM=True, queue=None, colour_mapping=None):
 
     #Work on annotated (ie test) data.
-
     from keras.models import load_model
     from skimage.transform import resize
     from sklearn.metrics import confusion_matrix
@@ -712,24 +709,69 @@ def inspect(modelpath=None, X_test=None, y_test=None, mean=None, size_target=Non
 
     #Map classnames to class labels
     labels = [0]*len(class_id_to_name) #initialise array
+    colour_mask = [0]*len(class_id_to_name)
     for elm in class_id_to_name:
         labels[elm['class_id']] = elm['name']
+        colour_mask[elm['class_id']] = colour_mapping[elm['name']]
+
+
+
+
 
     #Plot matrix
-    if normalise_CM:
-        normalisation = 'true'
-    else:
-        normalisation = None
 
-    CM = confusion_matrix(y_test,result, normalize=normalisation)
-    disp = ConfusionMatrixDisplay(confusion_matrix=CM, display_labels = labels)
-    disp.plot(cmap='Blues')
+    CM = confusion_matrix(y_test,result, normalize='true')
+    CM_counts = confusion_matrix(y_test,result,normalize=None)
+
+
+
+    #Seaborn plots sequential figures on top of each other. Use this to get multiple annotations
+
+    CM_percentage = 100*CM
+    processed_counts = CM_counts.flatten().tolist()
+    processed_counts = ['({})'.format(elm) for elm in processed_counts]
+    processed_counts = np.asarray(processed_counts).reshape((2,2))
+
+    processed_percentage = np.asarray(np.rint(CM_percentage.flatten()),dtype='int').tolist()
+    processed_percentage = ['{}%'.format(elm) for elm in processed_percentage]
+    processed_percentage = np.asarray(processed_percentage).reshape((2,2))
+
+
+    formatted_text = (np.asarray(["{}\n\n{}".format(
+        data,text) for text, data in zip(processed_counts.flatten(), processed_percentage.flatten())])).reshape(2, 2)
+
+    sns.set(font_scale=2.0)
+    fig,ax = plt.subplots(1,1,figsize=(6,6))
+    plt.tight_layout()
+    for i in range(len(colour_mask)):
+
+        mask = np.ones(CM_percentage.shape)
+        mask[:,i] = 0
+        sns.heatmap(CM_percentage,linewidths=2, linecolor="black",  ax=ax,annot=formatted_text, cbar=False, vmin=0,vmax=100, fmt='',cmap=colour_mask[i], mask=mask)
+
+
+    # labels, title and ticks
+    ax.set_xlabel('Predicted labels', fontsize=20)
+    ax.set_ylabel('True labels', fontsize=20)
+    ax.xaxis.set_ticklabels(labels, fontsize=20)
+    ax.yaxis.set_ticklabels(labels, fontsize=20)
+
+    ax.axhline(y=0, color='k', linewidth=3)
+    ax.axhline(y=CM_percentage.shape[1], color='k', linewidth=3)
+    ax.axvline(x=0, color='k', linewidth=3)
+    ax.axvline(x=CM_percentage.shape[0], color='k', linewidth=3)
+
+    plt.tight_layout()
     plt.show()
+
 
     #display_misclassifications(result,y_test,X_test,class_id_to_name,10,resize_cells=resize_cells, pad_cells=pad_cells, size_target=size_target)
 
     if queue is not None:
-        queue.put(CM)
+        if normalise_CM == True:
+            queue.put(CM)
+        else:
+            queue.put(CM_counts)
 
     return CM
 

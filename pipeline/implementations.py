@@ -263,9 +263,9 @@ def imgdims_tolist(arg):
 
 def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None, cond_IDs=None, image_channels=None, queue=None):
     ''' 
-    Sorts through NIM default file structure and sorts files into subfolders based on idetifiers. 
+    Sorts through NIM default file structure and sorts files into subfolders based on identifiers.
     
-    Version 2 with updated naming convention format.
+    Version 2 with updated naming convention format. Ability to deal with titration data.
     
     YYMMDD_ID_PROTOCOLCODE_amr_USERID_CELLID_CONDITIONID_ALLCHANNELS_CHANNELNAME+SERIES_POSITIONID_channels_t0_ZSLICEID
     '''
@@ -298,9 +298,15 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                 file_delim = file.split('_')  # Split filename to find metadata
 
                 matched = False
-
+                CONCENTRATION = False
                 #Extract metadata from filename
-                if len(file_delim) == 13:
+                if len(file_delim) == 14:
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS,CONCENTRATION,
+                     file_CHANNEL_SERIES, file_POSITION_ID, channels, timestamp, file_Z_ID] = file_delim
+                    assert CONCENTRATION.endswith(']')
+                    assert CONCENTRATION.startswith('[')
+                    file_Z_ID, fext = file_Z_ID.split('.')
+                elif len(file_delim) == 13:
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID,channels,timestamp, file_Z_ID] = file_delim
                     assert timestamp == 't0'
                     assert channels == 'channels'
@@ -351,17 +357,18 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
 
 
                                 #Assemble file name
-                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID,fext)
+                                if not CONCENTRATION:
+                                    CONCENTRATION = 'NULL'
+
+                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID,CONCENTRATION,fext)
 
                                 skimage.io.imsave(os.path.join(savefolder, fname),
                                                   img)  # Write image to appropriate sub folder
                                 matched = True
 
                         if matched is False and queue is not None:
-                            # print('Match failed')
                             queue.put('Tag match failed')
                         if matched is True and queue is not None:
-                            # print('Match success')
                             queue.put('Tag match success')
             else:
 
@@ -376,7 +383,7 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
 def SortNIM(data_folder, output_folder = None, crop_mapping=None, **kwargs):
     
     '''
-    Sorts through NIM default file structure and sorts files into subfolders based on condtion type.
+    Sorts through NIM default file structure and sorts files into subfolders based on condition type.
     
     Parameters
     ----------
@@ -539,7 +546,13 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                 file_delim = file.split('_')  # Split filename to find metadata
 
                 #Extract metadata from filename
-                [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                if len(file_delim) == 12: #Titration data has 12 fields'
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID, CONCENTRATION] = file_delim
+                elif len(file_delim) == 11: #Endpoints have 11 fields
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS,
+                     file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+
+                    CONCENTRATION = 'NA'
 
                 #Skip if we're not matching the experimental condition
                 if file_CONDID != cond_ID:
@@ -566,7 +579,17 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                         for file2 in files2:
                             file2_delim = file2.split('_')
 
-                            [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2, file_ALLCHANNELS_2, file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2] = file2_delim
+                            if len(file2_delim) == 12:  # Titration data has 12 fields'
+                                [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2,
+                                 file_ALLCHANNELS_2, file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2,
+                                 CONCENTRATION_2] = file2_delim
+                            elif len(file2_delim) == 11:  # Endpoints have 11 fields
+                                [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2,
+                                 file_ALLCHANNELS_2,
+                                 file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2] = file2_delim
+
+                                CONCENTRATION_2 = 'NA'
+
 
                             dataset_tag_2 = [int(s) for s in list(file_CHANNEL_SERIES_2) if s.isdigit()] #Extract dataset tag from channel info
                             if len(dataset_tag_2) != 1:
@@ -575,7 +598,7 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
 
                             #Match based on conditions
 
-                            if file_DATE_2 == file_DATE and file_EXPID == file_EXPID_2 and file_USER == file_USER_2 and file_CELLTYPE == file_CELLTYPE_2 and file_CONDID == file_CONDID_2 and file_POSITION_ID == file_POSITION_ID_2 and file_PROTOCOLID == file_PROTOCOLID_2 and dataset_tag == dataset_tag_2:
+                            if file_DATE_2 == file_DATE and file_EXPID == file_EXPID_2 and file_USER == file_USER_2 and file_CELLTYPE == file_CELLTYPE_2 and file_CONDID == file_CONDID_2 and file_POSITION_ID == file_POSITION_ID_2 and file_PROTOCOLID == file_PROTOCOLID_2 and CONCENTRATION == CONCENTRATION_2 and dataset_tag == dataset_tag_2:
 
                                 image2 = skimage.io.imread(os.path.join(root2, file2))
                                 assert image2.shape == image.shape  # All images must be the same size
@@ -587,7 +610,7 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                 if matches == len(
                         channel_paths) - 1:  # Fully matched images only. Matches are one less than total channel number
 
-                    filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
+                    filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_' + CONCENTRATION + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
                         cond_ID) + '_' + file_POSITION_ID + '.tif'  # Assemble filename
 
 
@@ -607,7 +630,7 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                             try:
                                 (tx,ty), error, diffphase = skimage.feature.register_translation(target_channel, channel, upsample_factor=10) #Calculate pixel offset
                                 shifted_channel = scipy.ndimage.shift(channel,(tx,ty))
-                            except Exception:
+                            except Exception as exc:
                                 print('Registration failed for images: {} {}'.format(file,file2))
                                 registration_fail_count += 1
                                 break

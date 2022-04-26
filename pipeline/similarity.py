@@ -17,95 +17,14 @@ import matplotlib.pyplot as plt
 import keras.backend as K
 import tensorflow as tf
 
+import seaborn
+
+
 from helpers import *
 
+import itertools, multiprocessing
 
-from triplet_loss import batch_hard_triplet_loss, batch_all_triplet_loss, triplet_semihard_loss
-
-
-class Layer_Freeze(keras.callbacks.Callback):
-    '''(Un)freeze backbone layers at selected epoch points'''
-
-    def __init__(self, *args, **kwargs):
-        self.unfreeze_epochs = kwargs.pop('unfreeze_epochs')
-        self.freeze_epochs = kwargs.pop('freeze_epochs')
-
-        self.freezeable_layers = kwargs.pop('freezeable_layers')
-
-        super(Layer_Freeze, self).__init__(*args, **kwargs)
-
-    def on_train_begin(self, logs=None):
-        '''Freeze all bottom layers'''
-        for layer in self.freezeable_layers:
-            layer.trainable = False
-        print('LayerFreeze - backbone frozen at start')
-
-        self.model.compile(self.model.optimizer, loss=self.model.loss, metrics=self.model.metrics)
-        print('LayerFreeze - model recompiled')
-
-    def on_epoch_begin(self, epoch, logs=None):
-        if epoch in self.unfreeze_epochs:
-            for layer in self.freezeable_layers:
-                layer.trainable = True
-            print('LayerFreeze - backbone trainable at epoch {}'.format(epoch))
-            self.model.compile(self.model.optimizer, loss=self.model.loss, metrics=self.model.metrics)
-            print('LayerFreeze - model recompiled')
-
-        elif epoch in self.freeze_epochs:
-            for layer in self.freezeable_layers:
-                layer.trainable = False
-            print('LayerFreeze - backbone frozen at epoch {}'.format(epoch))
-            self.model.compile(self.model.optimizer, loss=self.model.loss, metrics=self.model.metrics)
-            print('LayerFreeze - model recompiled')
-
-
-class Plot_Clusters(keras.callbacks.Callback):
-    '''Plot mean inter and intra class distance-to-mean values.'''
-
-    def __init__(self, *args, **kwargs):
-        self.validation_X = kwargs.pop('validation_X')
-        self.validation_y = kwargs.pop('validation_y')
-        self.target_epochs = kwargs.pop('target_epochs')
-        self.class_mapping = kwargs.pop('class_mapping')
-
-        self.cumulative_intraclass = {}
-        self.cumulative_interclass = {}
-
-        for class_id,mapping in self.class_mapping.items():
-            self.cumulative_intraclass[class_id] =[]
-        self.cumulative_interclass = []
-
-        super(Visualize_Embeddings_PCA, self).__init__(*args, **kwargs)
-
-    def on_epoch_begin(self, epoch, logs=None):
-        if epoch in self.target_epochs:
-            self.plot_cumulative_graph()
-
-    def _compute_mean_distance_to_mean(self, X,y):
-
-        means_intarclass, std_intraclass = self._compute_embeddings_and_means(self.validation_X,self.validation_y,self.class_mapping.keys())
-
-
-    def _compute_embeddings_and_means(self,X,y,class_ids):
-        embeddings = self.model.predict(X)
-        (count,features) = embeddings.shape
-
-        output = {}
-
-        for class_id in class_ids:
-            idx = np.where(y==class_id,True,False)
-            embeddings_in_class = embeddings[idx]
-            mean_embedding = embeddings_in_class.mean(axis=0)
-            difference = embeddings_in_class-mean_embedding
-
-            distances = np.linalg.norm(difference, ord=2, axis=0)
-            assert distances.shape == count
-
-            average_distance = np.mean(distances)
-            std = np.std(distances)
-            output[class_id] = {'mean':average_distance, 'std':std}
-
-        return output
+from triplet_loss import triplet_hard_loss, triplet_semihard_loss, pairwise_distance
 
 class Visualize_Embeddings_LDA(keras.callbacks.Callback):
     '''Visualise LDA'd embeddings at given epoch starts. Useful for tracking model learning.'''
@@ -290,34 +209,12 @@ def CIP2WT_mean(y_true, y_pred):
 
 def LR_Schedule(epoch,lr,total_epochs=None, initial_lr=None):
 
-    if epoch < round(total_epochs / 2):
+    if epoch < round(0.8*total_epochs):
         return lr
     else:
         return initial_lr/ 10  # initial learning rate
 
-def version3(input):
-    '''Multiple activation paths, linear projection, residual connections '''
-    dense1 = layers.Dense(512)(input)
-    dense1_relu = layers.Activation(activations.relu)(dense1)
-    dense1_tanh = layers.Activation(activations.tanh)(dense1)
-    dense1_composite = layers.concatenate([dense1_relu, dense1_tanh])
-    dense1_1x1conv = layers.Conv2D(512, (1, 1), activation=None)(dense1_composite)
-    dense1_add = layers.add([dense1,dense1_1x1conv])
-    dense1_BN = layers.BatchNormalization()(dense1_add)
-
-    dense2 = layers.Dense(256)(dense1_BN)
-    dense2_relu = layers.Activation(activations.relu)(dense2)
-    dense2_tanh = layers.Activation(activations.tanh)(dense2)
-    dense2_composite = layers.concatenate([dense2_relu, dense2_tanh])
-    dense2_1x1conv = layers.Conv2D(256, (1, 1), activation=None)(dense2_composite)
-    dense2_add = layers.add([dense2,dense2_1x1conv])
-    dense2_BN = layers.BatchNormalization()(dense2_add)
-
-    output = layers.Dense(128)(dense2_BN)
-
-    return output
-
-def version1(input):
+def version1(input,embedding_size):
     'Base case - dense cascade with BN'
     dense1 = layers.Dense(512,kernel_regularizer=l2(0.01))(input)
     dense1_relu = layers.Activation(activations.relu)(dense1)
@@ -327,35 +224,27 @@ def version1(input):
     dense2_relu = layers.Activation(activations.relu)(dense2)
     dense2_BN = layers.BatchNormalization()(dense2_relu)
 
-    output = layers.Dense(128,kernel_regularizer=l2(0.01))(dense2_BN)
+    output = layers.Dense(embedding_size,kernel_regularizer=l2(0.01))(dense2_BN)
     output_normal = layers.Lambda(lambda x: K.l2_normalize(x,axis=-1))(output)
+
+    print('Using encoder version 1, embedding size {}'.format(embedding_size))
     return output_normal
 
-def version0(input):
+def version0(input, embedding_size):
     dense1 = layers.Dense(512)(input)
     dense1_relu = layers.Activation(activations.relu)(dense1)
 
     dense2 = layers.Dense(256)(dense1_relu)
     dense2_relu = layers.Activation(activations.relu)(dense2)
 
-    dense3 = layers.Dense(128)(dense2_relu)
+    dense3 = layers.Dense(embedding_size)(dense2_relu)
     output_normal = layers.Lambda(lambda x: K.l2_normalize(x,axis=-1))(dense3)
+
+    print('Using encoder version 0, embedding size {}'.format(embedding_size))
     return output_normal
 
 
-
-def triplet_loss_wrapper(y_true, y_pred, sample_weight=None):
-    loss = triplet_semihard_loss(y_true,y_pred)
-    return loss
-
-def evaluate(model,X,y):
-    embeddings = model.predict(X)
-    loss, ratio = triplet_loss_wrapper(y,embeddings)
-    print(loss,ratio)
-
-
-
-def define_distance_model(backbone_weights=None, target_shape=None,encoder_version=None, freeze_backbone=False, optimizer=None, initial_lr=None):
+def define_distance_model(backbone_weights=None, target_shape=None,encoder_version=None, optimizer=None, initial_lr=None, embedding_size=None):
 
 
     # Create backbone with defined weights
@@ -378,18 +267,15 @@ def define_distance_model(backbone_weights=None, target_shape=None,encoder_versi
 
     #Add encoder according to specification
     if encoder_version == 1:
-        output = version1(avgpool2d)
-    elif encoder_version == 3:
-        output = version3(avgpool2d)
+        output = version1(avgpool2d,embedding_size)
     elif encoder_version ==0:
-        output = version0(avgpool2d)
+        output = version0(avgpool2d,embedding_size)
     else:
         raise ValueError('Version parameter contains an unsupported value.')
 
     # Assemble encoder
     similarity_model = Model(model.input, output, name="Similarity_model")
 
-    #similarity_model = SiameseModel(encoder)
 
     #Compile with optimizer and triplet semihard loss
     # Select optimimzer
@@ -406,10 +292,8 @@ def define_distance_model(backbone_weights=None, target_shape=None,encoder_versi
     else:
         raise TypeError('Optimizer {} not supported'.format(optimizer))
 
-    #Create wrapper for loss
-
-
-    similarity_model.compile(optimizer=opt, loss=triplet_semihard_loss, metrics=[triplet_semihard_loss,mean2mean,WT2CIP_mean,CIP2WT_mean, WT2WT_mean, CIP2CIP_mean])
+    #Compile first with semihard loss
+    similarity_model.compile(optimizer=opt, loss=triplet_semihard_loss, metrics=[triplet_semihard_loss,triplet_hard_loss,mean2mean,WT2CIP_mean,CIP2WT_mean, WT2WT_mean, CIP2CIP_mean])
 
     keras.utils.plot_model(
         similarity_model, to_file=r'C:\Users\zagajewski\Desktop\encoder.png',show_shapes=True)
@@ -441,7 +325,20 @@ def create_similarity_generator(cells=None, labels=None, batch_size=None, aug1=N
 
 
 
-def train_triplet_similarity(backbone_weights=None, cells=None, labels=None, target_shape=None, freeze_backbone=None,encoder_version=None, optimizer=None, initial_lr=None, batch_size=None, logdir=None, dt_string=None):
+def train_triplet_similarity(backbone_weights=None, cells=None, labels=None, target_shape=None, encoder_version=None, optimizer=None, initial_lr=None, batch_size=None, logdir=None, dt_string=None, embedding_size=None, epochs=None):
+
+    # Fix pycharm console
+    class PseudoTTY(object):
+        def __init__(self, underlying):
+            self.__underlying = underlying
+
+        def __getattr__(self, name):
+            return getattr(self.__underlying, name)
+
+        def isatty(self):
+            return True
+
+    sys.stdout = PseudoTTY(sys.stdout)
 
     #Preprocess images
     print('Padding cell images to {}'.format(target_shape))
@@ -455,21 +352,22 @@ def train_triplet_similarity(backbone_weights=None, cells=None, labels=None, tar
 
 
     #Create model
-    similarity_model,freezable_layers = define_distance_model(backbone_weights=backbone_weights, target_shape=target_shape, freeze_backbone=freeze_backbone, encoder_version=encoder_version,optimizer=optimizer,initial_lr=initial_lr)
+    similarity_model,freezable_layers = define_distance_model(backbone_weights=backbone_weights, target_shape=target_shape, encoder_version=encoder_version,optimizer=optimizer,initial_lr=initial_lr, embedding_size=embedding_size)
 
     #Define augmentation
-    # Define augmentation
 
     seq1 = iaa.Sequential(
         [
             iaa.Fliplr(0.5),
             iaa.Flipud(0.5),
             iaa.Affine(
-                scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
+                scale={"x": (0.5, 1.5), "y": (0.5, 1.5)},
                 rotate=(-90, 90),
                 mode="constant",
                 cval=0
-            )
+            ),
+            iaa.Sometimes(0.5, iaa.ShearY(shear=(-45, 45))),
+            iaa.Sometimes(0.5, iaa.ShearX(shear=(-45, 45)))
         ],
         random_order=True)
 
@@ -498,43 +396,149 @@ def train_triplet_similarity(backbone_weights=None, cells=None, labels=None, tar
         callbacks.ModelCheckpoint(os.path.join(logdir,checkpoint_name),
                                         verbose=0, save_weights_only=False, save_best_only=True, monitor='loss',
                                         mode='min'),
-        Visualize_Embeddings_LDA(validation_X=val_X, validation_y=val_y, target_epochs = [0, 5, 10, 25, 50, 75, 99], class_mapping = class_mapping),
-        Visualize_Embeddings_PCA(validation_X=val_X, validation_y=val_y, target_epochs=[0, 5, 10, 25, 50, 75, 99],
+        #Visualize_Embeddings_LDA(validation_X=val_X, validation_y=val_y, target_epochs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110], class_mapping = class_mapping),
+        Visualize_Embeddings_PCA(validation_X=val_X, validation_y=val_y, target_epochs= [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110],
                                  class_mapping=class_mapping),
-        #Layer_Freeze(freezeable_layers=freezable_layers, unfreeze_epochs=[25,75], freeze_epochs=[50]),
-        #callbacks.LearningRateScheduler(schedule= lambda epoch,lr,initial_lr=initial_lr, total_epochs=100 : LR_Schedule(epoch,lr,total_epochs=total_epochs,initial_lr=initial_lr),verbose=0)
+        callbacks.LearningRateScheduler(schedule= lambda epoch,lr,initial_lr=initial_lr, total_epochs=epochs : LR_Schedule(epoch,lr,total_epochs=total_epochs,initial_lr=initial_lr),verbose=0)
 
     ]
-    #Train
-    history = similarity_model.fit_generator(traingen, steps_per_epoch=len(traingen), validation_data=(val_X,val_y),  epochs=100, callbacks=cbacks)
+    #Train semihard loss first
+    history_semihard = similarity_model.fit_generator(traingen, steps_per_epoch=len(traingen), validation_data=(val_X,val_y),  epochs=epochs, callbacks=cbacks)
+
+    #Recompile with hard loss and finetune
+    similarity_model.compile(optimizer=similarity_model.optimizer, loss=triplet_hard_loss, metrics=similarity_model.metrics)
+
+    history_hard = similarity_model.fit_generator(traingen, steps_per_epoch=len(traingen), validation_data=(val_X, val_y),
+                                             epochs=epochs+10, callbacks=cbacks, initial_epoch=epochs)
+
+    #Concatanate histories
+    history_total = {}
+    for key,value in history_semihard.history.items():
+        history_total[key] = history_semihard.history[key] + history_hard.history[key]
 
     #Plot basic stats
-    summarize_triplet_loss(history, checkpoint_name)
+    summarize_triplet_loss(history_total, checkpoint_name)
 
 def optimize_triplet_similarity(backbone_weights = None, cells = None, labels = None, target_shape = None, encoder_version = None, parameter_grid = None, logdir = None):
 
     # Compute permutations of main parameters, call train() for each permutation. Wrap in multiprocessing to force GPU
     # memory release between runs, which otherwise doesn't happen
 
-    import itertools, multiprocessing
+    # Fix pycharm console
+    class PseudoTTY(object):
+        def __init__(self, underlying):
+            self.__underlying = underlying
 
-    keysum = ['batch_size', 'learning_rate', 'epochs', 'optimizer']
+        def __getattr__(self, name):
+            return getattr(self.__underlying, name)
+
+        def isatty(self):
+            return True
+
+    sys.stdout = PseudoTTY(sys.stdout)
+
+    keysum = ['batch_size', 'learning_rate', 'epochs', 'optimizer', 'embedding_size']
     assert all([var in parameter_grid for var in keysum]), 'Check all parameters given'
 
     makedir(logdir)  # Creat dir for logs
 
     for i, permutation in enumerate(itertools.product(parameter_grid['batch_size'], parameter_grid['learning_rate'],
-                                                      parameter_grid['epochs'], parameter_grid['optimizer'])):
-        (batch_size, learning_rate, epochs, optimizer) = permutation  # Fetch parameters
-        dt_string = "Encoder V{} BS {}, LR {}, epochs {}, opt {}".format(encoder_version, batch_size, learning_rate, epochs, optimizer)
+                                                      parameter_grid['epochs'], parameter_grid['optimizer'], parameter_grid['embedding_size'])):
+
+        (batch_size, learning_rate, epochs, optimizer, embedding_size) = permutation  # Fetch parameters
+        dt_string = "Encoder V{} BS {}, LR {}, epochs {}, opt {}, embedding_size {}".format(encoder_version, batch_size, learning_rate, epochs, optimizer, embedding_size)
 
         # Create separate subdir for each run, for tensorboard ease
 
         logdir_run = os.path.join(logdir, dt_string)
         makedir(logdir_run)
 
-        kwargs = {'backbone_weights':backbone_weights, 'cells':cells, 'labels':labels, 'target_shape':target_shape, 'freeze_backbone':False, 'encoder_version':encoder_version, 'optimizer':optimizer, 'initial_lr':learning_rate, 'batch_size':batch_size, 'logdir':logdir_run, 'dt_string':dt_string }
+        kwargs = {'backbone_weights':backbone_weights, 'cells':cells, 'labels':labels, 'target_shape':target_shape, 'encoder_version':encoder_version, 'optimizer':optimizer, 'initial_lr':learning_rate, 'batch_size':batch_size, 'logdir':logdir_run, 'dt_string':dt_string, 'embedding_size':embedding_size, 'epochs':epochs }
 
         p = multiprocessing.Process(target=train_triplet_similarity, kwargs=kwargs)
         p.start()
         p.join()
+
+
+def visualise_distance_matrices(complete=None, complete_separator=None):
+
+    #Plot joint heatmap first
+    fig,ax = plt.subplots(1,1, figsize=(10,10))
+    seaborn.heatmap(complete, cmap='inferno', cbar=True, ax=ax, square=True)
+
+    ax.invert_yaxis()
+    ax.set_title('Complete distance matrix')
+    plt.show()
+
+
+
+def compute_distance_matrices(untreated_embeddings=None,treated_embeddings=None):
+
+    count_untreated = len(untreated_embeddings)
+    count_treated = len(treated_embeddings)
+
+    complete = tf.convert_to_tensor(np.concatenate([untreated_embeddings,treated_embeddings], axis=0))
+
+    #Compute joint
+    complete = pairwise_distance(complete,squared=False)
+
+    return complete.eval(), count_untreated
+
+
+def evaluate_similarity(model = None, untreated_cells=None, treated_cells=None, target_shape = None):
+    #Pick out treated and untreated cells
+
+    # Fix pycharm console
+    class PseudoTTY(object):
+        def __init__(self, underlying):
+            self.__underlying = underlying
+
+        def __getattr__(self, name):
+            return getattr(self.__underlying, name)
+
+        def isatty(self):
+            return True
+
+    sys.stdout = PseudoTTY(sys.stdout)
+
+    #Preprocess images
+    print('Padding cell images to {}'.format(target_shape))
+    treated_cells = [pad_to_size(img,target_shape) for img in treated_cells]
+    untreated_cells = [pad_to_size(img,target_shape) for img in untreated_cells]
+
+    treated_cells = skimage.img_as_ubyte(np.asarray(treated_cells))
+    untreated_cells = skimage.img_as_ubyte(np.asarray(untreated_cells))
+
+
+    #Equalize all histograms
+    histeq = iaa.Sequential([iaa.AllChannelsHistogramEqualization()])
+    untreated_cells = histeq(images = untreated_cells)
+    treated_cells = histeq(images = treated_cells)
+
+    #Pick out treated and untreated cells
+    #Generate embeddings
+    print('Generating treated embeddings.')
+    treated_latent = model.predict(treated_cells)
+
+    print('Generating untreated embeddings.')
+    untreated_latent = model.predict(untreated_cells)
+
+    print('Done')
+
+    untreated_labels = np.zeros(len(untreated_latent))
+    treated_labels = np.ones(len(treated_latent))
+    class_mapping = {0:{'name':'WT', 'colour':'red'}, 1:{'name':'CIP', 'colour':'blue'}}
+    complete_latent = np.concatenate([untreated_latent,treated_latent],axis=0)
+    complete_labels = np.concatenate([untreated_labels,treated_labels],axis=0)
+
+
+    components, explained_varience = Visualize_Embeddings_PCA.PCA_embeddings(complete_latent)
+    Visualize_Embeddings_PCA.PCA_visualise(complete_labels,components,explained_varience, class_mapping, plot_title='2-component PCA')
+
+    complete, separator = compute_distance_matrices(untreated_embeddings=untreated_latent, treated_embeddings=treated_latent)
+    visualise_distance_matrices(complete=complete, complete_separator=separator)
+
+
+
+
+
