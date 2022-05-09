@@ -26,9 +26,16 @@ def segment_and_classify(img=None, segmenter=None, classifier=None,filename=None
     configuration = BacConfig()
     segmentations = predict_mrcnn_segmenter(source=img_NR, mode='images', weights=segmenter,
                                             config=configuration, filenames=filename)
+    # Remove all edge detections
+    segmentations, removed = remove_edge_cells(segmentations)
+    print('Removed {} edge cells from image.'.format(removed))
 
     # Create and run classifier
     cells = apply_rois_to_image(input=segmentations, mode='masks', images=img)
+
+    if cells == [[]]:
+        print('No cells detected in image.')
+        return [],[],[]
 
     mean = np.asarray([0, 0, 0])
     resize_target = (64, 64, 3)
@@ -42,13 +49,12 @@ def segment_and_classify(img=None, segmenter=None, classifier=None,filename=None
         classifications.append(prediction)
         confidences.append(confidence)
 
-    return classifications,confidences
+    return {'segmentations':segmentations, 'confidences':confidences, 'cells':cells, 'segmentations':segmentations, 'classifications':classifications}
 
 def plot_distributions(classifications=None, confidences=None, mappings=None, title=None):
 
     assert len(classifications) == len(confidences)
     total = len(classifications)
-
 
     classifications = np.asarray(classifications)
     confidences = np.asarray(confidences)
@@ -97,13 +103,79 @@ def plot_distributions(classifications=None, confidences=None, mappings=None, ti
 
 
 
+def cells_vs_confidence(classifications = None, confidences = None, cells = None, title = None):
+
+    #Resize to common shape
+    cells = [pad_to_size(img, (64,64,3)) for img in cells]
+
+    #Split by class
+    untreated_idx = np.where(np.asarray(classifications) == 0)
+    treated_idx = np.where(np.asarray(classifications) == 1)
+
+    #Take treated susceptible as the axis target. Cells that are high in confidence in untreated are low in confidence in the treated susceptible.
+    untreated_cells = np.asarray(cells)[untreated_idx]
+    treated_cells = np.asarray(cells)[treated_idx]
+
+    untreated_confidences = np.asarray(confidences)[untreated_idx]
+    treated_confidences = np.asarray(confidences)[treated_idx]
+
+    rescaled_untreated_confidences = np.abs((1.0 - untreated_confidences))
+
+    #Put all cells and confidences together
+    rescaled_all_confidences = np.append(treated_confidences, rescaled_untreated_confidences)
+    all_cells = np.append(treated_cells, untreated_cells, axis=0)
+
+    #Rebuild as lists
+    rescaled_all_confidences = rescaled_all_confidences.tolist()
+    all_cells_list = np.zeros(all_cells.shape[0]).tolist()
+    for i,cell in enumerate(all_cells):
+        all_cells_list[i] = cell
+
+    #Sort
+    sorted_confidences, sorted_cells = zip(*sorted(zip(rescaled_all_confidences, all_cells_list),key=lambda x: x[0]))
+
+    sorted_confidences = np.asarray(sorted_confidences)
+    sorted_cells = np.asarray(sorted_cells)
+
+    #Prep display
+    fig, axs = plt.subplots(5,20, constrained_layout=True, figsize=(20 * 2, 5 * 2))
+
+
+    #Bin in intervals of 0.1
+    thresholds = np.arange(0,1+0.05,0.05)
+    for i in range(20): #Cycle through lower bounds
+        j = i + 1 #Cycle through upper bounds
+
+        lower_bound = thresholds[i]
+        upper_bound = thresholds[j]
+
+        print('Binning between {} - {}'.format(lower_bound,upper_bound))
+
+        idx = np.where(np.logical_and(sorted_confidences>=lower_bound, sorted_confidences<=upper_bound))[0]
+        print('Found {} cells'.format(len(idx)))
+        cells_in_bin = sorted_cells[idx,:,:,:]
+
+        #Select 5 random cells
+        np.random.seed(42)
+        selected_idx = np.random.choice(np.arange(0,cells_in_bin.shape[0],1), size=5, replace=False)
+        selected_cells = cells_in_bin[selected_idx,:,:,:]
+
+        for k in range(5):
+            axs[k,i].imshow(skimage.img_as_ubyte(selected_cells[k,:,:,:]))
+            plt.axis('off')
+            axs[k,i].axis('off')
+
+    plt.show()
+
+
+
 
 
 if __name__ == '__main__':
 
     #Paths
-    data_main = r'C:\Users\zagajewski\Desktop\Conor images'
-    speciesID = r'78172'
+    data_main = r'C:\Users\zagajewski\Desktop\Conor images new'
+    speciesID = r'64017'
     repeatID = r'renamed'
 
     data_path = os.path.join(os.path.join(data_main,repeatID,speciesID))
@@ -172,7 +244,11 @@ if __name__ == '__main__':
                     image_count += 1
                     img = imread(os.path.join(root,file))
 
-                    image_classifications, image_confidences = segment_and_classify(img=img, segmenter=segmenter,classifier=classifier,filename=file)
+                    results = segment_and_classify(img=img, segmenter=segmenter,classifier=classifier,filename=file)
+                    image_classifications = results['classifications']
+                    image_confidences = results['confidences']
+                    if image_classifications == []:
+                        continue #Continue to next image if no cells detected
 
                     detection_count += len(image_classifications[0])
 

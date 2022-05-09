@@ -15,6 +15,8 @@ if __name__ == '__main__':
     from helpers import *
     import os
 
+    from segment_classify_distribution import segment_and_classify
+
     def plot_detections(segmentations=None,classifications=None,images=None, mappings=None, show_caption=True, title=''):
 
         assert len(segmentations) == len(classifications)
@@ -84,8 +86,8 @@ if __name__ == '__main__':
             plt.show()
 
     #Paths
-    filename = "220317_1_L78172_NA_AMR_combined_1_NA_posXY20.tif"
-    image_path = os.path.join(r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Classification_Distribution_78172\Collected\NA',filename)
+    filename = "220323_1_36929_[0].tif_AMR_combined_1_CIP+ETOH_posXY0.tif"
+    image_path = os.path.join(r'C:\Users\zagajewski\PycharmProjects\AMR\Data\titration\Concentration 0.0\Collected\CIP+ETOH',filename)
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
     classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
 
@@ -94,10 +96,10 @@ if __name__ == '__main__':
     map_sensitive = {'colour': 'dodgerblue', 'name': 'S'}
     mapping = {0:map_resistant, 1:map_sensitive}
 
-
     #Load image
     img = imread(image_path)
 
+    '''
     #Create an image for segmentation, fill 3 channels with NR
     img_NR = np.zeros(img.shape)
     img_NR[:,:,0] = img[:,:,0]
@@ -123,6 +125,10 @@ if __name__ == '__main__':
     for img_cells in cells:
         prediction,_,model = predict(modelpath=classifier_weights, X_test=img_cells, mean=mean, size_target=resize_target,pad_cells=True, resize_cells=False)
         classifications.append(prediction)
+    '''
 
+    results = segment_and_classify(img=img, segmenter=segmenter_weights, classifier=classifier_weights, filename=filename)
+    segmentations = results['segmentations']
+    classifications = results['classifications']
     #Show results
-    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=img, show_caption=False, title=None)
+    plot_detections(segmentations = segmentations,classifications=classifications,mappings =mapping, images=[img], show_caption=False, title=None)
