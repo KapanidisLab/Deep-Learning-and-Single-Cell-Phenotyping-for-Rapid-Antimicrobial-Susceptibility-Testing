@@ -75,7 +75,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -101,20 +101,20 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 
         local_pipeline_train = pipeline(train_folder, 'NIM')
-        #local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-         #                  crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+        local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                           crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
         local_pipeline_train.path = output_segregated_train
-        #local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
-         #                      registration_target=0)
+        local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
+                               registration_target=0)
 
         data_sources = [os.path.join(output_collected_train,condition) for condition in cond_IDs]
         annotation_sources = [os.path.join(os.path.join(annotations_path,condition),'annots') for condition in cond_IDs]
 
         dataset_output_train = os.path.join(split_path,'Dataset_Train')
 
-        #local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
-         #                    annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
-          #                   validation_size=0, seed=42)
+        local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
+                             annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
+                             validation_size=0, seed=42)
 
 
         #Prepare test data
@@ -124,19 +124,19 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         output_collected_test = os.path.join(split_path,'Collected_Test')
 
         local_pipeline_test = pipeline(test_folder, 'NIM')
-        #local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-         #                   crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
+        local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                            crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
         local_pipeline_test.path = output_segregated_test
-        #local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
-         #                     registration_target=0)
+        local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
+                              registration_target=0)
 
         data_sources = [os.path.join(output_collected_test, condition) for condition in cond_IDs]
 
         dataset_output_test = os.path.join(split_path, 'Dataset_Test')
 
-        #local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
-         #                    annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
-          #                   validation_size=0, seed=42)
+        local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
+                             annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
+                             validation_size=0, seed=42)
 
 
         #Extract data

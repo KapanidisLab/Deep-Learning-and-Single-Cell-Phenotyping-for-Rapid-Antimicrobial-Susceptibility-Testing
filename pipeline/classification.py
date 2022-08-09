@@ -43,7 +43,7 @@ def struct_from_file(dataset_folder=None, class_id = 1):
 
         for annot_dir in annots_dirs:
 
-            image_results = {'filename' : annot_dir+'.tif'} #Init storage object
+            image_results = {'filename' : annot_dir} #Init storage object
             masks = []
             bboxes =[]
 

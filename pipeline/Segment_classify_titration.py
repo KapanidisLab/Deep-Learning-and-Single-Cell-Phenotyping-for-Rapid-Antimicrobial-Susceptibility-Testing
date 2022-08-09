@@ -10,7 +10,7 @@ from classification import *
 from keras.models import load_model
 from Resistant_Sensitive_Comparison import amend_class_labels
 
-from segment_classify_distribution import segment_and_classify, plot_distributions, cells_vs_confidence
+from segment_classify_distribution import segment_and_classify, plot_distributions, cells_vs_confidence, cell_size_vs_confidence
 
 def evaluate_titratiion(data_folder = None, segmenter_weights = None, classifier_weights = None, output = None, cond_IDs = None, image_channels = None, img_dims = None, mapping=None):
 
@@ -78,7 +78,7 @@ def evaluate_titratiion(data_folder = None, segmenter_weights = None, classifier
             cumulative_classifications = []
             cumulative_confidences = []
             cumulative_cells = []
-            cumulative_segmentations = []
+            cumulative_areas = []
 
             # Find all images
             for root, dirs, files in os.walk(os.path.join(output_collected, cond_ID)):
@@ -92,12 +92,17 @@ def evaluate_titratiion(data_folder = None, segmenter_weights = None, classifier
                         image_classifications = results['classifications']
                         image_confidences = results['confidences']
                         image_cells = results['cells']
+                        image_segmentations = results['segmentations']
 
                         detection_count += len(image_classifications[0])
 
                         cumulative_classifications.extend(list(image_classifications[0]))
                         cumulative_confidences.extend(list(image_confidences[0]))
                         cumulative_cells.extend(list(image_cells[0]))
+
+                        #Calculate contour lengths from masks
+                        cell_areas = list(image_segmentations[0]['masks'].sum(axis=(0,1)))
+                        cumulative_areas.extend(cell_areas)
 
                         print('DONE {}'.format(image_count))
 
@@ -109,6 +114,9 @@ def evaluate_titratiion(data_folder = None, segmenter_weights = None, classifier
 
             # Plot cells as a function of confidence
             cells_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, cells = cumulative_cells, title='{} confidence at concentration {}'.format(cond_ID,conc))
+
+            # Confidence as a function of cell size
+            cell_size_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, areas = cumulative_areas)
 
 
 
@@ -126,6 +134,6 @@ if __name__ == '__main__':
     map_CIP = {'colour': 'dodgerblue', 'name': 'CIP'}
     mapping = {0:map_WT, 1:map_CIP}
 
-    data_folder = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\23_03_22'
+    data_folder = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\16_06_22'
 
     evaluate_titratiion(data_folder = data_folder, segmenter_weights = segmenter_weights, classifier_weights = classifier_weights, output = output, cond_IDs = cond_IDs, image_channels = image_channels, img_dims =img_dims, mapping=mapping)

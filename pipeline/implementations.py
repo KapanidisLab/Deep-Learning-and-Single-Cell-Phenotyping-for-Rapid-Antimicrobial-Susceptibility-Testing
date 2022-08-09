@@ -99,7 +99,8 @@ def TrainTestVal_split(data_sources=None, annotation_sources=None, output_folder
             (_,folder) = os.path.split(folder_path)
 
             for image in os.listdir(data_folder):
-                if fnmatch.fnmatch(image, folder+'.*'):
+
+                if image == folder:
 
                     img = os.path.join(data_folder,image)
                     matches.append([folder_path,img])
@@ -315,7 +316,8 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
                     file_Z_ID, fext = file_Z_ID.split('.')
                 else:
-                    raise ValueError('Unexpected .tif file in experiment folder. File name does not match expected convention')
+                    print('WARNING - Unexpected tif in experiment folder. Ignoring file: {}'.format(file))
+                    continue
 
                 if file_Z_ID != 'posZ0':
                     continue #Ignore all not centered images
@@ -337,30 +339,39 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
 
                                 #If correctly identified, read, crop image, make composition filename
                                 img = skimage.io.imread(os.path.join(root, file))  # Load image
+                                crop_on = True
 
-                                img_sz,img_sx,img_sy = img.shape
-
-
+                                if len(img.shape) == 2:
+                                    img_sx, img_sy = img.shape
+                                    img_sz = 1
+                                else:
+                                    img_sz, img_sx, img_sy = img.shape
 
                                 if not all([img_sz in sz, img_sx in sx, img_sy in sy]):
-                                    raise RuntimeError('ERROR - Image {} dimensions inconsistent with specification.'.format(os.path.join(root, file)))
+                                    if img_sy == sy[0]/2:
+                                        print('WARNING - image {} appears cropped already.'.format(file))
+                                        crop_on = False
+                                    else:
+                                        print('ERROR - image size ({},{},{}) incompatible against specification ({},{},{})'.format(img_sz,img_sx,img_sy, sz,sx,sy))
+                                        raise RuntimeError('ERROR - Image {} dimensions inconsistent with specification.'.format(os.path.join(root, file)))
 
-                                img = numpy.mean(img, axis=0)  # Average frames
+                                if img_sz != 1:
+                                    img = numpy.mean(img, axis=0)  # Average frames
 
                                 crop = crop_mapping[channel]
-                                if crop == 0:
+                                if crop == 0 and crop_on:
                                     img = img[:, 0:int(img_sy / int(2))]  # Crop FoV to remove unused half - keep left side
                                     assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
-                                elif crop == 1:
+                                elif crop == 1 and crop_on:
                                     img = img[:, int(img_sy / int(2)):]  # Crop FoV to remove unused half - keep right side
                                     assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
 
 
                                 #Assemble file name
                                 if not CONCENTRATION:
-                                    CONCENTRATION = 'NULL'
+                                    CONCENTRATION = 'NA'
 
-                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID,CONCENTRATION,fext)
+                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE,file_EXPID,file_PROTOCOLID,CONCENTRATION,file_USER,file_CELLTYPE,file_CONDID,file_ALLCHANNELS,file_CHANNEL_SERIES,file_POSITION_ID,file_Z_ID,fext)
 
                                 skimage.io.imsave(os.path.join(savefolder, fname),
                                                   img)  # Write image to appropriate sub folder
@@ -547,7 +558,7 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
 
                 #Extract metadata from filename
                 if len(file_delim) == 12: #Titration data has 12 fields'
-                    [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID, CONCENTRATION] = file_delim
+                    [file_DATE, file_EXPID, file_PROTOCOLID, _,CONCENTRATION, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
                 elif len(file_delim) == 11: #Endpoints have 11 fields
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS,
                      file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
@@ -580,9 +591,8 @@ def CollectNIM2(data_folder, output_folder = None, registration_target = None, c
                             file2_delim = file2.split('_')
 
                             if len(file2_delim) == 12:  # Titration data has 12 fields'
-                                [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2,
-                                 file_ALLCHANNELS_2, file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2,
-                                 CONCENTRATION_2] = file2_delim
+                                [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2,_, CONCENTRATION_2, file_USER_2, file_CELLTYPE_2, file_CONDID_2,
+                                 file_ALLCHANNELS_2, file_CHANNEL_SERIES_2, file_POSITION_ID_2, file_Z_ID_2] = file2_delim
                             elif len(file2_delim) == 11:  # Endpoints have 11 fields
                                 [file_DATE_2, file_EXPID_2, file_PROTOCOLID_2, _, file_USER_2, file_CELLTYPE_2, file_CONDID_2,
                                  file_ALLCHANNELS_2,

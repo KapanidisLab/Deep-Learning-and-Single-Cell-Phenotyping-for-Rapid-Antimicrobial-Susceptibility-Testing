@@ -7,11 +7,8 @@ Created on Sun Apr 26 17:17:56 2020
 import copy
 
 import matplotlib.pyplot as plt
-
-from mrcnn import config
 from mrcnn import utils
-from mrcnn import model as modellib
-from mrcnn import visualize as visualize
+
 import os, sys
 
 import numpy as np
@@ -240,30 +237,6 @@ def get_ax(rows=1, cols=1, size=16):
     """
     fig, ax = plt.subplots(rows, cols, figsize=(size * cols, size * rows))
     return ax
-
-
-def compute_batch_ap(dataset, image_ids, config, model, verbose=1):
-    APs = []
-    for image_id in image_ids:
-        # Load image
-        image, image_meta, gt_class_id, gt_bbox, gt_mask = \
-            modellib.load_image_gt(dataset, config,
-                                   image_id, use_mini_mask=False)
-        # Run object detection
-        results = model.detect_molded(image[np.newaxis], image_meta[np.newaxis], verbose=0)
-        # Compute AP over range 0.5 to 0.95
-        r = results[0]
-        ap = utils.compute_ap_range(
-            gt_bbox, gt_class_id, gt_mask,
-            r['rois'], r['class_ids'], r['scores'], r['masks'],
-            verbose=0)
-        APs.append(ap)
-        if verbose:
-            info = dataset.image_info[image_id]
-            meta = modellib.parse_image_meta(image_meta[np.newaxis, ...])
-            print("{:3} {}   AP: {:.2f}".format(
-                meta["image_id"][0], meta["original_image_shape"][0], ap))
-    return APs
 
 
 def image_stats(image_id, dataset):

@@ -49,7 +49,7 @@ def segment_and_classify(img=None, segmenter=None, classifier=None,filename=None
         classifications.append(prediction)
         confidences.append(confidence)
 
-    return {'segmentations':segmentations, 'confidences':confidences, 'cells':cells, 'segmentations':segmentations, 'classifications':classifications}
+    return {'segmentations':segmentations, 'confidences':confidences, 'cells':cells, 'classifications':classifications}
 
 def plot_distributions(classifications=None, confidences=None, mappings=None, title=None):
 
@@ -101,7 +101,38 @@ def plot_distributions(classifications=None, confidences=None, mappings=None, ti
     plt.tight_layout()
     plt.show()
 
+def cell_size_vs_confidence(classifications = None, confidences = None, areas = None):
+    # Split by class
+    untreated_idx = np.where(np.asarray(classifications) == 0)
+    treated_idx = np.where(np.asarray(classifications) == 1)
 
+    untreated_confidences = np.asarray(confidences)[untreated_idx]
+    treated_confidences = np.asarray(confidences)[treated_idx]
+
+    untreated_areas = np.asarray(areas)[untreated_idx]
+    treated_areas = np.asarray(areas)[treated_idx]
+
+
+    plt.hist2d(untreated_confidences,untreated_areas, range=[[0.5, 1.0],[50, 550]], density=True, cmap='Reds')
+
+    plt.title('Untreated Detections')
+    plt.ylabel('Object area', fontsize=18)
+    plt.xlabel('Detection Confidence', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+
+    plt.hist2d(treated_confidences,treated_areas, range=[[0.5, 1.0],[50, 550]], density=True, cmap='Blues')
+
+    plt.title('Treated Susceptible Detections')
+    plt.ylabel('Object area', fontsize=18)
+    plt.xlabel('Detection Confidence', fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.tight_layout()
+    plt.show()
 
 def cells_vs_confidence(classifications = None, confidences = None, cells = None, title = None):
 
@@ -157,8 +188,12 @@ def cells_vs_confidence(classifications = None, confidences = None, cells = None
 
         #Select 5 random cells
         np.random.seed(42)
-        selected_idx = np.random.choice(np.arange(0,cells_in_bin.shape[0],1), size=5, replace=False)
-        selected_cells = cells_in_bin[selected_idx,:,:,:]
+        try:
+            selected_idx = np.random.choice(np.arange(0,cells_in_bin.shape[0],1), size=5, replace=False)
+            selected_cells = cells_in_bin[selected_idx,:,:,:]
+        except ValueError:
+            print('Insufficient detections in bin, cannot display.')
+            return
 
         for k in range(5):
             axs[k,i].imshow(skimage.img_as_ubyte(selected_cells[k,:,:,:]))
@@ -168,6 +203,65 @@ def cells_vs_confidence(classifications = None, confidences = None, cells = None
     plt.show()
 
 
+
+def segment_classify_distribution(segmenter_weights=None, classifier_weights=None, cond_IDs=None, data_path=None):
+
+    #Load models
+    print('LOADING CLASSIFIER...')
+    classifier = load_model(classifier_weights)
+    print('DONE \n')
+
+    print('LOADING SEGMENTER...')
+    configuration = BacConfig()
+    configuration.IMAGES_PER_GPU = 1
+    configuration.IMAGE_RESIZE_MODE = 'pad64' #Pad to multiples of 64
+    configuration.__init__()
+
+    segmenter = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
+    segmenter.load_weights(segmenter_weights, by_name=True)
+    print('DONE \n')
+
+    #Loop over all conditions
+    for cond_ID in cond_IDs:
+        print('-----------------------')
+        print('EVALUATING {}'.format(cond_ID))
+        print('-----------------------')
+
+        detection_count = 0
+        image_count = 0
+
+        cumulative_classifications = []
+        cumulative_confidences = []
+
+        #Find all images
+        for root,dirs,files in os.walk(os.path.join(data_path,cond_ID)):
+            for file in files:
+                if file.endswith('.tif'):
+
+                    image_count += 1
+                    img = imread(os.path.join(root,file))
+
+                    results = segment_and_classify(img=img, segmenter=segmenter,classifier=classifier,filename=file)
+                    image_classifications = results['classifications']
+                    image_confidences = results['confidences']
+                    if image_classifications == []:
+                        continue #Continue to next image if no cells detected
+
+                    detection_count += len(image_classifications[0])
+
+                    cumulative_classifications.extend(list(image_classifications[0]))
+                    cumulative_confidences.extend(list(image_confidences[0]))
+
+                    print('DONE {}'.format(image_count))
+
+        #Plot histograms
+        print('')
+        print('Detected {} cells in {} images.'.format(detection_count,image_count))
+
+        plot_distributions(classifications=cumulative_classifications, confidences=cumulative_confidences,
+                           mappings=mapping, title=speciesID + ' ' + cond_ID)
+
+        return cumulative_classifications,cumulative_confidences
 
 
 
@@ -202,65 +296,16 @@ if __name__ == '__main__':
 
     #Assemble images
     pipeline = ProcessingPipeline(data_path, 'NIM')
-    #pipeline.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-     #             crop_mapping={'DAPI': 0, 'NR': 0},
-      #            output_folder=output_segregated)
+    pipeline.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                  crop_mapping={'DAPI': 0, 'NR': 0},
+                  output_folder=output_segregated)
     pipeline.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected,
                      registration_target=0)
 
+    #Run inference
+    cumulative_classifications,cumulative_confidences = segment_classify_distribution(segmenter_weights=segmenter_weights, classifier_weights=classifier_weights, cond_IDs=cond_IDs, data_path=output_collected)
 
-    #Load models
-    print('LOADING CLASSIFIER...')
-    classifier = load_model(classifier_weights)
-    print('DONE \n')
 
-    print('LOADING SEGMENTER...')
-    configuration = BacConfig()
-    configuration.IMAGES_PER_GPU = 1
-    configuration.IMAGE_RESIZE_MODE = 'pad64' #Pad to multiples of 64
-    configuration.__init__()
-
-    segmenter = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
-    segmenter.load_weights(segmenter_weights, by_name=True)
-    print('DONE \n')
-
-    #Loop over all conditions
-    for cond_ID in cond_IDs:
-        print('-----------------------')
-        print('EVALUATING {}'.format(cond_ID))
-        print('-----------------------')
-
-        detection_count = 0
-        image_count = 0
-
-        cumulative_classifications = []
-        cumulative_confidences = []
-
-        #Find all images
-        for root,dirs,files in os.walk(os.path.join(output_collected,cond_ID)):
-            for file in files:
-                if file.endswith('.tif'):
-
-                    image_count += 1
-                    img = imread(os.path.join(root,file))
-
-                    results = segment_and_classify(img=img, segmenter=segmenter,classifier=classifier,filename=file)
-                    image_classifications = results['classifications']
-                    image_confidences = results['confidences']
-                    if image_classifications == []:
-                        continue #Continue to next image if no cells detected
-
-                    detection_count += len(image_classifications[0])
-
-                    cumulative_classifications.extend(list(image_classifications[0]))
-                    cumulative_confidences.extend(list(image_confidences[0]))
-
-                    print('DONE {}'.format(image_count))
-
-        #Plot histograms
-        print('')
-        print('Detected {} cells in {} images.'.format(detection_count,image_count))
-        plot_distributions(classifications=cumulative_classifications,confidences=cumulative_confidences,mappings=mapping, title=speciesID+' '+cond_ID)
 
 
 

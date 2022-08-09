@@ -259,15 +259,24 @@ def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_s
 
                     file_delim = img_filename.split('_')
 
-                    if len(file_delim) == 13:
+                    # Extract metadata from filename
+                    if len(file_delim) == 12:  # Titration data has 12 fields'
                         [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID,
-                         file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, channels, timestamp,
-                         file_Z_ID] = file_delim
-                        assert timestamp == 't0'
-                        assert channels == 'channels'
-                    elif len(file_delim) == 11:
+                         file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID, CONCENTRATION] = file_delim
+                    elif len(file_delim) == 11:  # Endpoints have 11 fields
                         [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID,
-                         file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+                         file_ALLCHANNELS,
+                         file_CHANNEL_SERIES, file_POSITION_ID, file_Z_ID] = file_delim
+
+                        CONCENTRATION = 'NA'
+
+                    elif len(file_delim) == 13:
+                        assert file_delim[10] == 'channels' and file_delim[11] == 't0'
+
+                        [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID,
+                         file_ALLCHANNELS,
+                         file_CHANNEL_SERIES, file_POSITION_ID,_,_, file_Z_ID] = file_delim
+
                     else:
                         raise ValueError(
                             'Unexpected .tif file in experiment folder. File name does not match expected convention')
@@ -278,8 +287,7 @@ def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_s
                     if len(dataset_tag) != 1:
                         raise RuntimeError('ERROR - badly formatted series identifier.')
 
-                    new_filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + str(
-                        file_CONDID) + '_' + file_POSITION_ID
+                    new_filename = file_DATE + '_' +file_EXPID + '_' + file_CELLTYPE + '_' + CONCENTRATION + '_AMR' + '_combined_' + str(dataset_tag[0]) + '_' + file_CONDID + '_' + file_POSITION_ID + '.tif'  # Assemble filename
 
                     makedir(os.path.join(output_path, 'annots', new_filename))
                 else:
