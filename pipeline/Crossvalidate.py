@@ -12,11 +12,13 @@ from distutils.dir_util import copy_tree
 import multiprocessing
 import seaborn as sns
 from Resistant_Sensitive_Comparison import amend_class_labels
+from Lab_strains_hold_out_test import select_n_by_experiment
+
 
 def crossvalidate_experiments(output_path=None, experiments_path_list=None, annotations_path=None, size_target=None,
                               pad_cells=False, resize_cells=False, class_count=None,
                               logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None,
-                              colour_mapping=None):
+                              colour_mapping=None,cells_per_experiment=None,epochs=None, optimizer=None):
 
     #Make output folder
     makedir(output_path)
@@ -75,7 +77,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -144,14 +146,23 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
         manual_struct_train = classification.struct_from_file(
             dataset_folder=dataset_output_train,
             class_id=1)
-        cells_train = classification.cells_from_struct(input=manual_struct_train, cond_IDs=cond_IDs, image_dir=output_collected_train,
-                                        mode='masks')
+
+        cells_train = select_n_by_experiment(struct=manual_struct_train, cond_IDs=cond_IDs,
+                                             image_dir=output_collected_train, n=cells_per_experiment)
+
         cells_train = amend_class_labels(original_label='WT+ETOH',new_label='Untreated',new_id=0,cells=cells_train)
 
         if 'CIP+ETOH' in cond_IDs:
             cells_train = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_train)
         elif 'RIF+ETOH' in cond_IDs:
             cells_train = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_train)
+        elif 'GENT+ETOH' in cond_IDs:
+            cells_train = amend_class_labels(original_label='GENT+ETOH', new_label='GENT', new_id=1, cells=cells_train)
+        elif 'CEFT+ETOH' in cond_IDs:
+            cells_train = amend_class_labels(original_label='CEFT+ETOH', new_label='CEFT', new_id=1, cells=cells_train)
+        elif 'COAMOX+ETOH' in cond_IDs:
+            cells_train = amend_class_labels(original_label='COAMOX+ETOH', new_label='COAMOX', new_id=1, cells=cells_train)
+
         else:
             raise ValueError()
 
@@ -162,14 +173,22 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
             dataset_folder=dataset_output_test,
             class_id=1)
 
-        cells_test = classification.cells_from_struct(input=manual_struct_test, cond_IDs=cond_IDs, image_dir=output_collected_test,
-                                       mode='masks')
+        cells_test = select_n_by_experiment(struct=manual_struct_test, cond_IDs=cond_IDs,
+                                             image_dir=output_collected_test, n=cells_per_experiment)
+
         cells_test = amend_class_labels(original_label='WT+ETOH',new_label='Untreated',new_id=0,cells=cells_test)
 
         if 'CIP+ETOH' in cond_IDs:
             cells_test = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_test)
         elif 'RIF+ETOH' in cond_IDs:
             cells_test = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_test)
+        elif 'GENT+ETOH' in cond_IDs:
+            cells_test = amend_class_labels(original_label='GENT+ETOH', new_label='GENT', new_id=1, cells=cells_test)
+        elif 'CEFT+ETOH' in cond_IDs:
+            cells_test = amend_class_labels(original_label='CEFT+ETOH', new_label='CEFT', new_id=1, cells=cells_test)
+        elif 'COAMOX+ETOH' in cond_IDs:
+            cells_test = amend_class_labels(original_label='COAMOX+ETOH', new_label='COAMOX', new_id=1, cells=cells_test)
+
         else:
             raise ValueError()
 
@@ -186,13 +205,13 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 
         kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells,
-                  'class_count':class_count, 'logdir':logdir, 'batch_size':batch_size, 'epochs':100, 'learning_rate':learning_rate, 'optimizer':'NAdam',
+                  'class_count':class_count, 'logdir':logdir, 'batch_size':batch_size, 'epochs':epochs, 'learning_rate':learning_rate, 'optimizer':optimizer,
                   'verbose':verbose, 'dt_string':dt
                   }
 
-        #p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
-        #p.start()
-        #p.join()
+        p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
+        p.start()
+        p.join()
 
 
         print()
@@ -266,14 +285,14 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 if __name__ == '__main__':
 
-    experiment0 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_0_18_08_20')
-    experiment1 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_1_25_03_21')
-    experiment2 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_3_01_04_21')
-    experiment3 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_4_03_04_21')
-    experiment4 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_5_19_10_21')
-    experiment5 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_6_25_10_21')
+    experiment0 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_7_21_09_22'
+    experiment1 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_2_16_08_22'
+    experiment2 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_3_07_09_22'
+    experiment3 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_4_12_09_22'
+    experiment4 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_5_13_09_22'
+    experiment5 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_6_14_09_22'
 
-    annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric')
+    annot_path = os.path.join(get_parent_path(1), 'Data', 'New_antibiotics_segmentations_all')
 
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
@@ -282,25 +301,25 @@ if __name__ == '__main__':
 
     #--------------------------------------------------WT_RIF-----------------------------------------------------------
 
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_RIF')
-    cond_IDs = ['WT+ETOH', 'RIF+ETOH']
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_COAMOX')
+    cond_IDs = ['WT+ETOH', 'COAMOX+ETOH']
 
-    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_RIF')
+    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_COAMOX')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=2,
                               logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=64, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((145, 75, 60), input="husl")})
+                              batch_size=8, learning_rate=0.001, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'COAMOX':sns.light_palette((260, 75, 60), input="husl")}, cells_per_experiment=400, epochs=200, optimizer='SGD')
 
 
     #--------------------------------------------------WT_CIP-----------------------------------------------------------
 
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_CIP')
-    cond_IDs = ['WT+ETOH', 'CIP+ETOH']
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_CEFT')
+    cond_IDs = ['WT+ETOH', 'CEFT+ETOH']
 
-    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_CIP')
+    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_CEFT')
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=2,
                               logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=16, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CIP':sns.light_palette((260, 75, 60), input="husl")})
+                              batch_size=8, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CEFT':sns.light_palette((260, 75, 60), input="husl")},cells_per_experiment=400, epochs=200, optimizer='SGD')

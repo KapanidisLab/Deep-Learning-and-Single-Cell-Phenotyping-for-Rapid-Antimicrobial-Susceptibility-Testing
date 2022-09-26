@@ -113,10 +113,10 @@ def evaluate_titratiion(data_folder = None, segmenter_weights = None, classifier
                                mappings=mapping, title='{} concentration {}'.format(cond_ID,conc))
 
             # Plot cells as a function of confidence
-            cells_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, cells = cumulative_cells, title='{} confidence at concentration {}'.format(cond_ID,conc))
+            #cells_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, cells = cumulative_cells, title='{} confidence at concentration {}'.format(cond_ID,conc))
 
             # Confidence as a function of cell size
-            cell_size_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, areas = cumulative_areas)
+            #cell_size_vs_confidence(classifications = cumulative_classifications, confidences = cumulative_confidences, areas = cumulative_areas)
 
 
 
@@ -134,6 +134,6 @@ if __name__ == '__main__':
     map_CIP = {'colour': 'dodgerblue', 'name': 'CIP'}
     mapping = {0:map_WT, 1:map_CIP}
 
-    data_folder = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\16_06_22'
+    data_folder = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\26_05_22'
 
     evaluate_titratiion(data_folder = data_folder, segmenter_weights = segmenter_weights, classifier_weights = classifier_weights, output = output, cond_IDs = cond_IDs, image_channels = image_channels, img_dims =img_dims, mapping=mapping)

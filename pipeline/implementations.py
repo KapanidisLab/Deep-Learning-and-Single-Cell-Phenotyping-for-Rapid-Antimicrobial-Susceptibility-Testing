@@ -304,8 +304,7 @@ def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None
                 if len(file_delim) == 14:
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS,CONCENTRATION,
                      file_CHANNEL_SERIES, file_POSITION_ID, channels, timestamp, file_Z_ID] = file_delim
-                    assert CONCENTRATION.endswith(']')
-                    assert CONCENTRATION.startswith('[')
+                    assert CONCENTRATION.endswith(']') and CONCENTRATION.startswith('[') or CONCENTRATION == 'NA'
                     file_Z_ID, fext = file_Z_ID.split('.')
                 elif len(file_delim) == 13:
                     [file_DATE, file_EXPID, file_PROTOCOLID, _, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID,channels,timestamp, file_Z_ID] = file_delim

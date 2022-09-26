@@ -261,16 +261,16 @@ def segment_classify_distribution(segmenter_weights=None, classifier_weights=Non
         plot_distributions(classifications=cumulative_classifications, confidences=cumulative_confidences,
                            mappings=mapping, title=speciesID + ' ' + cond_ID)
 
-        return cumulative_classifications,cumulative_confidences
+    return None
 
 
 
 if __name__ == '__main__':
 
     #Paths
-    data_main = r'C:\Users\zagajewski\Desktop\Conor images new'
-    speciesID = r'64017'
-    repeatID = r'renamed'
+    data_main = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Clinical_strains_full_repeats'
+    speciesID = r'36929'
+    repeatID = r'Composite'
 
     data_path = os.path.join(os.path.join(data_main,repeatID,speciesID))
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
@@ -278,7 +278,7 @@ if __name__ == '__main__':
     output = r'C:\Users\zagajewski\PycharmProjects\AMR\Data'
 
 
-    cond_IDs = ['NA', 'CIP']
+    cond_IDs = ['WT+ETOH','CIP+ETOH']
     image_channels = ['NR', 'DAPI']
     img_dims = (30, 684, 840)
 
@@ -288,7 +288,7 @@ if __name__ == '__main__':
 
 
     #Make output structures
-    output = os.path.join(output,'Classification_Distribution_'+speciesID)
+    output = os.path.join(output,'Classification_Distribution_{}_{}'.format(repeatID,speciesID))
     makedir(output)
 
     output_segregated = os.path.join(output,'Segregated')
@@ -303,7 +303,7 @@ if __name__ == '__main__':
                      registration_target=0)
 
     #Run inference
-    cumulative_classifications,cumulative_confidences = segment_classify_distribution(segmenter_weights=segmenter_weights, classifier_weights=classifier_weights, cond_IDs=cond_IDs, data_path=output_collected)
+    segment_classify_distribution(segmenter_weights=segmenter_weights, classifier_weights=classifier_weights, cond_IDs=cond_IDs, data_path=output_collected)
 
 
 

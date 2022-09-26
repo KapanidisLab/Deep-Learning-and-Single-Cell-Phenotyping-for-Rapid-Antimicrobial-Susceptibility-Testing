@@ -102,8 +102,7 @@ def plot_detections(segmentations=None,classifications=None,images=None, mapping
 
 if __name__ == '__main__':
     #Paths
-    filename = "220416_1_48480_[01].tif_AMR_combined_3_CIP+ETOH_posXY1.tif"
-    image_path = os.path.join(r'C:\Users\zagajewski\PycharmProjects\AMR\Data\titration\Concentration 0.1\Collected\CIP+ETOH',filename)
+    image_path = os.path.join(r'C:\Users\zagajewski\Desktop\Ex1\220920_1_36929_NA_AMR_combined_1_TUBE18_posXY14.tif')
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
     classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
 
@@ -116,7 +115,7 @@ if __name__ == '__main__':
     img = imread(image_path)
 
 
-    results = segment_and_classify(img=img, segmenter=segmenter_weights, classifier=classifier_weights, filename=filename)
+    results = segment_and_classify(img=img, segmenter=segmenter_weights, classifier=classifier_weights, filename='Sample')
     segmentations = results['segmentations']
     classifications = results['classifications']
     #Show results

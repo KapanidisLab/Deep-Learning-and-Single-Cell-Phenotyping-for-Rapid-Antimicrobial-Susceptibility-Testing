@@ -57,7 +57,12 @@ def struct_from_file(dataset_folder=None, class_id = 1):
                 #Read mask
                 readpath = os.path.join(annot_dir, file)
 
-                mask = skimage.io.imread(readpath)
+                try:
+                    mask = skimage.io.imread(readpath)
+                except ValueError:
+                    print('WARNING - reader plugin error on {}, skipping mask.'.format(readpath))
+                    continue
+
                 mask[mask>=244] = 1 #Binarize mask and cast to bool
                 assert mask.min() == 0 and mask.max() == 1
 
@@ -206,25 +211,8 @@ def cells_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
             ROIs = image_result['masks']  #In mask mode, use masks directly to mask out image segments
             bboxes = image_result['rois'] #get bounding boxes to extract masked segments
 
-        elif mode =='bbox': #In bbox mode, use bboxes instead to mask segments
-
-            bboxes = image_result['rois']
-            bbox_count = bboxes.shape()[0]
-
-            ROIs = np.zeros((xlim, ylim, bbox_count))
-            for i,box in enumerate(bboxes):
-                ROI = np.zeros((xlim,ylim))
-                [y1,x1,y2,x2] = box
-
-                r = np.array([y1,y1,y2,y2]) #arrange vertices in clockwise order
-                c = np.array([x1,x2,x2,x1])
-
-                rr, cc = skimage.draw.polygon(r, c) #Draw box
-                ROI[rr,cc] = 1
-
-                ROIs[:,:,i] = ROI #Store as mask
         else:
-            raise TypeError
+            raise ValueError('Mode not supported.')
 
         ROIs = ROIs.astype(int)  #Cast to int for matrix multiplication
 

@@ -214,7 +214,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
               'mean': np.asarray([0, 0, 0]),
               'size_target': size_target, 'pad_cells': pad_cells, 'resize_cells': resize_cells,
               'class_id_to_name': cells_train['class_id_to_name'],
-              'normalise_CM': True, 'queue': None, 'colour_mapping':{'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((100, 75, 60), input="husl")}}
+              'normalise_CM': True, 'queue': None, 'colour_mapping':{'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((145, 75, 60), input="husl")}}
 
     p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
     p.start()
@@ -245,11 +245,18 @@ if __name__ == '__main__':
 
 
     #Change numbers of cells:
-    for cellcount in [50,100,150,200,250,300,350,400]:
 
-        logdir = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0RIF1_Holdout_Test\{}'.format(cellcount)
+    for i in range(0,1,1):
 
-        holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
-        pad_cells = True, resize_cells = False, class_count = 2,
-        logdir = logdir, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 64, learning_rate = 0.0005, cells_per_experiment=cellcount)
+        for cellcount in [500]:
+
+            dirr = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0RIF1_Holdout_Test\{}'.format(i)
+            makedir(dirr)
+
+            logdir = os.path.join(dirr,str(cellcount))
+
+
+            holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
+            pad_cells = True, resize_cells = False, class_count = 2,
+            logdir = logdir, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 64, learning_rate = 0.0005, cells_per_experiment=cellcount)
 
