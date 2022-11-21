@@ -18,6 +18,7 @@ from keras.applications.densenet import DenseNet121
 from keras.optimizers import SGD, Adam, Nadam
 import seaborn as sns
 from matplotlib.colors import ListedColormap
+import re, copy
 
 
 def struct_from_file(dataset_folder=None, class_id = 1):
@@ -154,14 +155,107 @@ def apply_rois_to_image(input=None, mode=None, images=None):
     return output
 
 
+def cells_and_masks_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
+
+    # Expects a results list as prepared by predict_mrcnn_segmenter.
+    # cond_IDs = list of strings with condition identifiers
+    # image_dir = path to images prepared with Collect() and Sort()
+
+    output = {'class_id_to_name': []}
+
+    for i, cond_ID in enumerate(cond_IDs):  # Create output struct, populate with condition ids
+        output[cond_ID] = []
+        mapping = {'class_id': i,
+                   'name': cond_ID}
+        output['class_id_to_name'].append(mapping)
+
+    for image_result in input:
+
+        # Get condition ID from image result, try to match to supplied identifiers
+        filename = image_result['filename']
+        matched_condID = False
+        matched = False
+
+        for cond_ID in cond_IDs:
+
+            pattern = cond_ID  # Assemble pattern
+            pattern = re.escape(pattern)  # Auto escape any metacharacters inside cond_ID
+            pattern = re.compile(pattern)  # Compile
+
+            # If matched, get image from supplied image_dir
+            if pattern.search(filename) is not None:
+                if not matched_condID:
+
+                    matched = True
+                    matched_condID = cond_ID
+
+                    image = fetch_image(image_dir, filename)  # fetch image() from helpers file
+                    assert len(image.shape) == 2 or len(image.shape) == 3, 'Images must be either monochrome or RGB'
+
+                    if len(image.shape) == 2:  # Add channel axis for monochrome images
+                        image = np.expand_dims(image, -1)
+
+                else:
+                    raise TypeError('More than one cond_ID matched to image.')
+
+        if matched is not True:
+            raise RuntimeError('Image not matched to any supplied condition ID. Check input.')
+
+        # Get instance masks. Use either segmentation masks of bounding boxes
+
+        if mode == 'masks':
+            ROIs = image_result['masks']  # In mask mode, use masks directly to mask out image segments
+            bboxes = image_result['rois']  # get bounding boxes to extract masked segments
+        elif mode == 'bbox':
+            bboxes = image_result['rois']
+            ROIs = np.zeros(image_result['masks'].shape)
+            for i, bbox in enumerate(bboxes):
+                [y1, x1, y2, x2] = bboxes[i]
+                ROI = ROIs[:, :, i]
+                ROI[y1:y2 + 1, x1:x2 + 1, :] = 1
+                ROIs[:, :, i] = ROI
+
+        else:
+            raise ValueError('Mode not supported.')
+
+        ROIs = ROIs.astype(int)  # Cast to int for matrix multiplication
+
+        # Iterate through ROIs
+        (x, y, N) = ROIs.shape
+        for i in range(0, N, 1):
+
+            [y1, x1, y2, x2] = bboxes[i]  # Get correct box
+            masked_image = copy.deepcopy(image)  # Copy image to create mask
+
+            ROI = ROIs[:, :, i]  # Fetch mask
+            assert ROI.min() == 0 and ROI.max() == 1  # verify correct mask range
+
+            ch_count = masked_image.shape[-1]  # Minimum of one trailing channel
+
+            # Apply mask over all channels, elementwise multiplication
+            for ch in range(0, ch_count, 1):
+                masked_image[:, :, ch] = np.multiply(masked_image[:, :, ch], ROI)
+
+            # Now extract the entire bbox of the masked image
+            cell_instance = masked_image[y1:y2 + 1, x1:x2 + 1, :]  # Extract the bounding box of ROI
+
+            #And mask
+            mask_instance = ROI[y1:y2 + 1, x1:x2 + 1]
+            # Add to output struct
+            assert cell_instance.shape[0:2] == mask_instance.shape
+            output[matched_condID].append([cell_instance,mask_instance])
+
+    return output
+
+
 def cells_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
     #TODO reuse apply rois in second half of this
+
+    #TODO This is the old version of the code, maintained here for backwards compatibility with scripts. Merge.
 
     #Expects a results list as prepared by predict_mrcnn_segmenter.
     # cond_IDs = list of strings with condition identifiers
     # image_dir = path to images prepared with Collect() and Sort()
-
-    import re, fnmatch, skimage.io, skimage.draw, copy
 
     output = {'class_id_to_name' : [] }
 
@@ -211,6 +305,14 @@ def cells_from_struct(input=None, cond_IDs=None, image_dir=None, mode='masks'):
             ROIs = image_result['masks']  #In mask mode, use masks directly to mask out image segments
             bboxes = image_result['rois'] #get bounding boxes to extract masked segments
 
+        elif mode == 'bbox':
+            bboxes = image_result['rois']
+            ROIs = np.zeros(image_result['masks'].shape)
+            for i, bbox in enumerate(bboxes):
+                [y1, x1, y2, x2] = bboxes[i]
+                ROI = ROIs[:, :, i]
+                ROI[y1:y2 + 1, x1:x2 + 1, :] = 1
+                ROIs[:, :, i] = ROI
         else:
             raise ValueError('Mode not supported.')
 
@@ -413,9 +515,10 @@ def train(mode = None, X_train = None, y_train = None, size_target = None, pad_c
     learning_rate = kwargs.get('learning_rate',0.001)
     dt_string = kwargs.get('dt_string', None)
     optimizer = kwargs.get('optimizer', 'SGD+N')
+    init_source = kwargs.get('init_source',None)
 
     #Create model instance
-    model = define_model(mode=mode, size_target=size_target, class_count=class_count, initial_lr=learning_rate, opt=optimizer)
+    model = define_model(mode=mode, size_target=size_target, class_count=class_count, initial_lr=learning_rate, opt=optimizer, init_source=init_source)
 
     #Load and resize images, without maintaining aspect ratio.
     #One-hot encode labels

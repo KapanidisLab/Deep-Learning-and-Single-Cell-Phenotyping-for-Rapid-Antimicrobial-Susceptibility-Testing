@@ -18,7 +18,7 @@ from Lab_strains_hold_out_test import select_n_by_experiment
 def crossvalidate_experiments(output_path=None, experiments_path_list=None, annotations_path=None, size_target=None,
                               pad_cells=False, resize_cells=False, class_count=None,
                               logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None,
-                              colour_mapping=None,cells_per_experiment=None,epochs=None, optimizer=None):
+                              colour_mapping=None,cells_per_experiment=None,epochs=None, optimizer=None,transfer_weights=None):
 
     #Make output folder
     makedir(output_path)
@@ -77,7 +77,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+#        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
     #Initialise CM for storage
     CM_total = np.zeros((len(cond_IDs),len(cond_IDs)))
@@ -104,7 +104,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         local_pipeline_train = pipeline(train_folder, 'NIM')
         local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-                           crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+                            crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
         local_pipeline_train.path = output_segregated_train
         local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
                                registration_target=0)
@@ -206,7 +206,7 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
         kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'size_target':size_target, 'pad_cells':pad_cells, 'resize_cells':resize_cells,
                   'class_count':class_count, 'logdir':logdir, 'batch_size':batch_size, 'epochs':epochs, 'learning_rate':learning_rate, 'optimizer':optimizer,
-                  'verbose':verbose, 'dt_string':dt
+                  'verbose':verbose, 'dt_string':dt, 'init_source':transfer_weights
                   }
 
         p = multiprocessing.Process(target=classification.train, kwargs=kwargs)
@@ -285,41 +285,43 @@ def crossvalidate_experiments(output_path=None, experiments_path_list=None, anno
 
 if __name__ == '__main__':
 
-    experiment0 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_7_21_09_22'
-    experiment1 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_2_16_08_22'
-    experiment2 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_3_07_09_22'
-    experiment3 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_4_12_09_22'
-    experiment4 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_5_13_09_22'
-    experiment5 = r'D:\Aleks\Phenotype detection gent, ceft and coamox\Repeat_6_14_09_22'
+    experiment0 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_0_18_08_20'
+    experiment1 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_1_25_03_21'
+    experiment2 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_3_01_04_21'
+    experiment3 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_4_03_04_21'
+    experiment4 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_5_19_10_21'
+    experiment5 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_6_25_10_21'
 
-    annot_path = os.path.join(get_parent_path(1), 'Data', 'New_antibiotics_segmentations_all')
+    annot_path = os.path.join(get_parent_path(1), 'Data', 'Conor_DFP_Segmentations_all')
 
     image_channels = ['NR', 'DAPI']
-    img_dims = (30, 684, 840)
+    img_dims = ((30,1), 684, (840,856))
     experiments_path_list = [experiment0,experiment1,experiment2,experiment3,experiment4,experiment5]
     size_target = (64,64,3)
 
+    transfer_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
+
     #--------------------------------------------------WT_RIF-----------------------------------------------------------
 
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_COAMOX')
-    cond_IDs = ['WT+ETOH', 'COAMOX+ETOH']
+    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WTCIP_No_Background_Masking')
+    cond_IDs = ['WT+ETOH', 'CIP+ETOH']
 
-    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_COAMOX')
-
-    crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
-                              pad_cells=True, resize_cells=False, class_count=2,
-                              logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=8, learning_rate=0.001, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'COAMOX':sns.light_palette((260, 75, 60), input="husl")}, cells_per_experiment=400, epochs=200, optimizer='SGD')
-
-
-    #--------------------------------------------------WT_CIP-----------------------------------------------------------
-
-    output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_CEFT')
-    cond_IDs = ['WT+ETOH', 'CEFT+ETOH']
-
-    logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_CEFT')
+    logdir = output_path
 
     crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
                               pad_cells=True, resize_cells=False, class_count=2,
-                              logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
-                              batch_size=8, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CEFT':sns.light_palette((260, 75, 60), input="husl")},cells_per_experiment=400, epochs=200, optimizer='SGD')
+                              logdir=logdir, verbose=True, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
+                              batch_size=16, learning_rate=0.0005, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'CIP':sns.light_palette((260, 75, 60), input="husl")}, cells_per_experiment=500, epochs=100, optimizer='NAdam')
+
+
+    #--------------------------------------------------WT_GENT-----------------------------------------------------------
+
+    #output_path = os.path.join(get_parent_path(1), 'Data','Crossvalidate_WT_GENT')
+    #cond_IDs = ['WT+ETOH', 'GENT+ETOH']
+
+    #logdir = os.path.join(get_parent_path(1),'Data','Crossvalidate_WT_GENT')
+
+    #crossvalidate_experiments(output_path=output_path, experiments_path_list=experiments_path_list, annotations_path=annot_path, size_target=size_target,
+     #                         pad_cells=True, resize_cells=False, class_count=2,
+      #                        logdir=logdir, verbose=False, cond_IDs=cond_IDs, image_channels=image_channels, img_dims=img_dims, mode='DenseNet121',
+       #                       batch_size=8, learning_rate=0.001, colour_mapping={'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'GENT':sns.light_palette((260, 75, 60), input="husl")},cells_per_experiment=500, epochs=100, optimizer='NAdam')

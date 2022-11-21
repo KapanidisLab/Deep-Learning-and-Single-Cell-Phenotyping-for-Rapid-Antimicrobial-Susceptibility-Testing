@@ -39,14 +39,16 @@ def plot_detection_timelapse(classifications=None,delta_t=None,timeunit=None,map
     plt.tight_layout()
     plt.show()
 
+def plot_individual_cells(classifications=None,delta_t=None,timeunit=None,mapping=None, n=[0,2,3]):
+    pass
 
 if __name__ == '__main__':
 
-    image_path = os.path.join(r'C:\Users\zagajewski\Desktop\results')
-    filename = 'HU_WT.tiff'
+    image_path = os.path.join(r'C:\Users\zagajewski\Desktop\Timelapses\Processed')
+    filename = 'COAMOX_timelapse.tif'
 
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
-    classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
+    classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0COAMOX1_Holdout_Test\MODE - DenseNet121 BS - 8 LR - 0.001 Holdout test.h5'
 
     #Mappings from training set
     map_resistant = {'colour': 'orangered', 'name': 'Untreated'}
@@ -55,6 +57,9 @@ if __name__ == '__main__':
 
     #Load image
     img = imread(os.path.join(image_path,filename))
+    img = np.asarray(img,dtype='uint16')
+    print(img.dtype)
+    print(img.shape)
 
     img_count = img.shape[0]
     classifaction_stack = []
@@ -75,7 +80,19 @@ if __name__ == '__main__':
     print('DONE \n')
 
     for i in range(img_count):
+        print('Processing {}'.format(i))
         image = img[i,:,:,:]
+        image.dtype
+        dtype = img.dtype
+
+        #Reshape image
+
+        if image.shape[0] == 2: #Add extra 0 blue channel if not present
+            zero = np.zeros((image.shape[1],image.shape[2],3),dtype=dtype)
+            for ch in range(image.shape[0]):
+                zero[:,:,ch] = image[ch,:,:]
+            image = zero
+
 
         results = segment_and_classify(img=image, segmenter=segmenter, classifier=classifier,
                                        filename='t{}'.format(i))
@@ -87,8 +104,8 @@ if __name__ == '__main__':
         classifaction_stack.append(classifications[0])
 
         title = 't={}'.format(i)
-        # Show results
+         #Show results
         #plot_detections(segmentations=segmentations, classifications=classifications, mappings=mapping, images=[image],
-         #               show_caption=False, title=title, save=0, savepath=image_path)
+         #              show_caption=False, title=title, save=0, savepath=image_path)
 
-    plot_detection_timelapse(classifications=classifaction_stack,delta_t=2,timeunit='min',mapping=mapping, title='Untreated')
+    plot_detection_timelapse(classifications=classifaction_stack,delta_t=2,timeunit='min',mapping=mapping, title='+COAMOX')

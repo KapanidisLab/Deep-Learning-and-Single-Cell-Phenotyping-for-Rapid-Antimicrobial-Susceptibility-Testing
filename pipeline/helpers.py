@@ -370,6 +370,7 @@ def summarize_diagnostics(history, plot_title):
 def remove_edge_cells(segmentations):
     '''Takes in a list of segmentations as produced by MRCNN. Remove all edge detections'''
     output = []
+    total_removed = 0
     for img_segmentation in segmentations:
         (sy,sx,n) = img_segmentation['masks'].shape
 
@@ -389,8 +390,8 @@ def remove_edge_cells(segmentations):
         new_segmentation = copy.deepcopy(img_segmentation)
         new_segmentation.update(update)
         output.append(new_segmentation)
-
-    return output, n-len(idx)
+        total_removed += n-len(idx)
+    return output, total_removed
 
 
 def inspect_model_data(X, y, n):

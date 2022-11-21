@@ -32,7 +32,7 @@ def select_n_by_experiment(struct=None,cond_IDs=None,image_dir=None, n=None):
         #Collect cells
         cells = classification.cells_from_struct(input=struct_local, cond_IDs=cond_IDs,
                                                        image_dir=image_dir,
-                                                       mode='masks')
+                                                       mode='bbox')
 
         #Randomly select
         cells = select_n_cells(cells, n)
@@ -81,7 +81,7 @@ def select_n_cells(cells=None, n=300):
 
 def holdout_test(output_path=None, training_path_list=None, test_path = None, annotations_path=None, size_target=None,
                               pad_cells=False, resize_cells=False, class_count=None,
-                              logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None, cells_per_experiment=None):
+                              logdir=None, verbose=False, cond_IDs=None, image_channels=None, img_dims =None, mode=None,batch_size=None,learning_rate=None, cells_per_experiment=None,optimizer=None, epochs=None):
 
     #Make output folder
     makedir(output_path)
@@ -97,7 +97,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
         def isatty(self):
             return True
 
-    sys.stdout = PseudoTTY(sys.stdout)
+    #sys.stdout = PseudoTTY(sys.stdout)
 
     #Generate masks
 
@@ -106,7 +106,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     for i in range(len(cond_IDs)):
         cond_ID = cond_IDs[i]
         corresponding_annotations = os.path.join(annotations_path,cond_ID)
-        #p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
+        p.FileOp('masks_from_integer_encoding', mask_path=corresponding_annotations, output_path=corresponding_annotations)
 
 
     # Prepare train data
@@ -114,39 +114,39 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
     output_collected_train = os.path.join(output_path, 'Collected_Train')
 
     local_pipeline_train = pipeline(training_path_list, 'NIM')
-    #local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-     #                         crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
+    local_pipeline_train.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                                crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_train)
     local_pipeline_train.path = output_segregated_train
-    #local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
-     #                            registration_target=0)
+    local_pipeline_train.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_train,
+                                 registration_target=0)
 
     data_sources = [os.path.join(output_collected_train, condition) for condition in cond_IDs]
     annotation_sources = [os.path.join(os.path.join(annotations_path, condition), 'annots') for condition in cond_IDs]
 
     dataset_output_train = os.path.join(output_path, 'Dataset_Train')
 
-    #local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
-     #                           annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
-      #                        validation_size=0, seed=42)
+    local_pipeline_train.FileOp('TrainTestVal_split', data_sources=data_sources,
+                                annotation_sources=annotation_sources, output_folder=dataset_output_train, test_size=0,
+                                validation_size=0, seed=42)
 
     # Prepare test data
     output_segregated_test = os.path.join(output_path, 'Segregated_Test')
     output_collected_test = os.path.join(output_path, 'Collected_Test')
 
     local_pipeline_test = pipeline(test_path, 'NIM')
-    #local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
-     #                      crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
+    local_pipeline_test.Sort(cond_IDs=cond_IDs, img_dims=img_dims, image_channels=image_channels,
+                           crop_mapping={'DAPI': 0, 'NR': 0}, output_folder=output_segregated_test)
     local_pipeline_test.path = output_segregated_test
-    #local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
-     #                           registration_target=0)
+    local_pipeline_test.Collect(cond_IDs=cond_IDs, image_channels=image_channels, output_folder=output_collected_test,
+                                registration_target=0)
 
     data_sources = [os.path.join(output_collected_test, condition) for condition in cond_IDs]
 
     dataset_output_test = os.path.join(output_path, 'Dataset_Test')
 
-    #local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
-     #                          annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
-      #                         validation_size=0, seed=42)
+    local_pipeline_test.FileOp('TrainTestVal_split', data_sources=data_sources,
+                               annotation_sources=annotation_sources, output_folder=dataset_output_test, test_size=1,
+                               validation_size=0, seed=42)
 
     # Extract data, remove edge cells
 
@@ -163,6 +163,15 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
         cells_train = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_train)
     elif 'RIF+ETOH' in cond_IDs:
         cells_train = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_train)
+    elif 'GENT+ETOH' in cond_IDs:
+        cells_train = amend_class_labels(original_label='GENT+ETOH', new_label='GENT', new_id=1, cells=cells_train)
+    elif 'CEFT+ETOH' in cond_IDs:
+        cells_train = amend_class_labels(original_label='CEFT+ETOH', new_label='CEFT', new_id=1, cells=cells_train)
+    elif 'COAMOX+ETOH' in cond_IDs:
+        cells_train = amend_class_labels(original_label='COAMOX+ETOH', new_label='COAMOX', new_id=1, cells=cells_train)
+
+    else:
+        raise ValueError()
 
     X_train, _, y_train, _ = classification.split_cell_sets(input=cells_train, test_size=0, random_state=42)
 
@@ -180,6 +189,15 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
         cells_test = amend_class_labels(original_label='CIP+ETOH', new_label='CIP', new_id=1, cells=cells_test)
     elif 'RIF+ETOH' in cond_IDs:
         cells_test = amend_class_labels(original_label='RIF+ETOH', new_label='RIF', new_id=1, cells=cells_test)
+    elif 'GENT+ETOH' in cond_IDs:
+        cells_test = amend_class_labels(original_label='GENT+ETOH', new_label='GENT', new_id=1, cells=cells_test)
+    elif 'CEFT+ETOH' in cond_IDs:
+        cells_test = amend_class_labels(original_label='CEFT+ETOH', new_label='CEFT', new_id=1, cells=cells_test)
+    elif 'COAMOX+ETOH' in cond_IDs:
+        cells_test = amend_class_labels(original_label='COAMOX+ETOH', new_label='COAMOX', new_id=1, cells=cells_test)
+
+    else:
+        raise ValueError()
 
     _, X_test, _, y_test = classification.split_cell_sets(input=cells_test, test_size=1, random_state=42)
 
@@ -194,8 +212,8 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
 
     kwargs = {'mode': mode, 'X_train': X_train, 'y_train': y_train, 'size_target': size_target, 'pad_cells': pad_cells,
               'resize_cells': resize_cells,
-              'class_count': class_count, 'logdir': logdir, 'batch_size': batch_size, 'epochs': 100,
-              'learning_rate': learning_rate, 'optimizer': 'NAdam',
+              'class_count': class_count, 'logdir': logdir, 'batch_size': batch_size, 'epochs': epochs,
+              'learning_rate': learning_rate, 'optimizer': optimizer,
               'verbose': verbose, 'dt_string': dt
               }
 
@@ -214,7 +232,7 @@ def holdout_test(output_path=None, training_path_list=None, test_path = None, an
               'mean': np.asarray([0, 0, 0]),
               'size_target': size_target, 'pad_cells': pad_cells, 'resize_cells': resize_cells,
               'class_id_to_name': cells_train['class_id_to_name'],
-              'normalise_CM': True, 'queue': None, 'colour_mapping':{'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((145, 75, 60), input="husl")}}
+              'normalise_CM': True, 'queue': None, 'colour_mapping':{'Untreated':sns.light_palette((0, 75, 60), input="husl"), 'RIF':sns.light_palette((260, 75, 60), input="husl")}}
 
     p = multiprocessing.Process(target=classification.inspect, kwargs=kwargs)
     p.start()
@@ -229,14 +247,14 @@ if __name__ == '__main__':
 
     annot_path = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All')
 
-    experiment0 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_0_18_08_20')
-    experiment1 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_1_25_03_21')
-    experiment2 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_3_01_04_21')
-    experiment3 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_4_03_04_21')
-    experiment4 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_5_19_10_21')
-    experiment5 = os.path.join(get_parent_path(1), 'Data', 'Exp1', 'Repeat_6_25_10_21')
+    experiment0 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_0_18_08_20'
+    experiment1 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_1_25_03_21'
+    experiment2 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_3_01_04_21'
+    experiment3 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_4_03_04_21'
+    experiment4 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_5_19_10_21'
+    experiment5 = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1\Repeat_6_25_10_21'
 
-    holdout_experiment = os.path.join(get_parent_path(1), 'Data', 'Exp1_HoldOut_test', 'Repeat_9_22_02_22')
+    holdout_experiment = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Exp1_HoldOut_Test\Repeat_9_22_02_22'
 
     experiments_path_list = [experiment0,experiment1,experiment2,experiment3,experiment4,experiment5]
 
@@ -246,7 +264,7 @@ if __name__ == '__main__':
 
     #Change numbers of cells:
 
-    for i in range(0,1,1):
+    for i in range(0,3):
 
         for cellcount in [500]:
 
@@ -258,5 +276,5 @@ if __name__ == '__main__':
 
             holdout_test(output_path = output_path, training_path_list = experiments_path_list, test_path = holdout_experiment, annotations_path = annot_path, size_target = size_target,
             pad_cells = True, resize_cells = False, class_count = 2,
-            logdir = logdir, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 64, learning_rate = 0.0005, cells_per_experiment=cellcount)
+            logdir = logdir, verbose = True, cond_IDs = cond_IDs, image_channels = image_channels, img_dims = img_dims, mode = 'DenseNet121', batch_size = 64, learning_rate = 0.0005, cells_per_experiment=cellcount,optimizer='NAdam',epochs=100)
 

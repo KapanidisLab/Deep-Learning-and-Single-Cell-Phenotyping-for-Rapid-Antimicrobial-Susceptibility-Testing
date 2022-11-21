@@ -214,8 +214,97 @@ def masks_from_Cellpose(mask_path=None, output_path=None, global_image_size=None
 
     return os.path.join(output_path, 'annots')
 
+def masks_from_integer_encoding_CF(mask_path=None, output_path=None,combined_convention=True):
+    '''Version of decoder for Conor Feehily.'''
 
-def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_size=None, image_dir=None,combined_convention=True):
+    print('Reading integer encoded masks - CF edition.')
+    print()
+
+    used_masks = 0
+    image_total = 0
+
+    makedir(os.path.join(output_path, 'annots'))
+
+    # Find all annotation files that end with .tif
+
+    for root, dirs, files in os.walk(mask_path, topdown=True):
+        for file in files:
+            if file.endswith('.tif'):
+
+                # Find all masks in file
+
+                img_filename = os.path.splitext(file)[0]
+
+                # Create folder with mask
+
+                if combined_convention:
+
+                    file_delim = img_filename.split('_')
+
+                    # Extract metadata from filename
+
+                    if len(file_delim) == 12:  # Titration data has 12 fields'
+                        [file_DATE, file_EXPID, file_PRID, file_ProjectCode, file_CONC, file_UserID, file_StrainID, file_CONDID, file_CHANNELS, file_CHANNELSERIES, file_posXY,
+                         file_posZ] = file_delim
+
+                    else:
+                        raise ValueError(
+                            'Unexpected .tif file in experiment folder. File name does not match expected convention')
+
+                    # Extract series counter
+                    dataset_tag = [int(s) for s in list(file_CHANNELSERIES) if
+                                   s.isdigit()]  # Extract dataset tag from channel info
+                    if len(dataset_tag) != 1:
+                        raise RuntimeError('ERROR - badly formatted series identifier.')
+
+
+                    new_filename = file_DATE + '_' + file_EXPID + '_' + file_StrainID + '_' + file_CONC + '_AMR' + '_combined_' + str(
+                        dataset_tag[0]) + '_' + file_CONDID + '_' + file_posXY + '.tif'  # Assemble filename
+
+                    makedir(os.path.join(output_path, 'annots', new_filename))
+                else:
+
+                    new_filename = img_filename
+                    makedir(os.path.join(output_path, 'annots', new_filename))
+
+                # Load annot file for image
+                loadpath = os.path.join(root, file)
+
+                masks = skimage.io.imread(loadpath)
+
+                # Extract individual cells
+                mask_idxs = np.unique(masks)
+
+                cellcount = 0
+
+                # Remove degenerate case - the zero
+                if 0 in mask_idxs:
+                    i = np.where(mask_idxs == 0)
+                    mask_idxs = np.delete(mask_idxs, i)
+
+                # Decompact into strictly binary mask stack
+                for mask_idx in mask_idxs:
+                    single_cell_mask = np.where(masks == mask_idx, 1, 0)
+
+                    filename = 'Cell' + str(cellcount) + '.bmp'  # Mask filename
+                    savepath = os.path.join(output_path, 'annots', new_filename,
+                                            filename)  # Assemble whole save path
+
+                    skimage.io.imsave(savepath, skimage.img_as_ubyte(single_cell_mask), check_contrast=False)
+
+                    cellcount += 1
+                    used_masks += 1
+
+                image_total += 1
+
+    print('Generated', ':', str(used_masks), 'masks out of', str(image_total), 'images.')
+    print('Generated {} masks from segmentation instances.'.format(used_masks))
+    print()
+
+    return os.path.join(output_path, 'annots')
+
+
+def masks_from_integer_encoding(mask_path=None, output_path=None,combined_convention=True):
     '''
     Locates composite masks stored as .tif files (integer encoded) and generates single cell masks in the output folder,
     in the structure output_folder/annots/(image_name)/Cell1.bmp... Cell2.bmp....
@@ -235,7 +324,7 @@ def masks_from_integer_encoding(mask_path=None, output_path=None, global_image_s
 
     '''
 
-    print('Reading integer encoded masks')
+    print('Reading integer encoded masks - CF edition.')
     print()
 
     used_masks = 0

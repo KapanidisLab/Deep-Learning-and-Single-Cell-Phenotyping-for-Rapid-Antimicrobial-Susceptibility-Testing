@@ -261,6 +261,129 @@ def imgdims_tolist(arg):
         return [arg]
     else:
         return arg
+def SortNIM2_CF(data_folder, output_folder = None, crop_mapping=None, img_dims=None, cond_IDs=None, image_channels=None, queue=None):
+    "Version for Conor Feehily"
+
+    assert len(img_dims) == 3, 'img_dims must have exactly 3 values'
+
+    image_channels = list(set(image_channels))  # Extract unique channels
+
+    if output_folder is None:  # Default output path if none provided
+        output_folder = os.path.join(data_folder, 'Segregated')
+    else:
+        assert type(output_folder) == str
+
+    (sz, sx, sy) = img_dims
+
+    # Transform to list in case of multiple input
+    [sz, sx, sy] = [imgdims_tolist(d) for d in (sz, sx, sy)]
+
+    makedir(output_folder)
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    if not isinstance(data_folder, list):
+        data_folder = [data_folder]
+
+    for root, dirs, files in tqdm(chain.from_iterable(os.walk(path) for path in data_folder),
+                                  total=dircounter(data_folder), unit='dirs',
+                                  desc='Searching directories'):
+        for file in files:
+
+            if file.endswith(".tif"):  # Find all image files in folder
+                file_delim = file.split('_')  # Split filename to find metadata
+
+                matched = False
+                CONCENTRATION = False
+                # Extract metadata from filename
+                if len(file_delim) == 12:
+
+                    [file_DATE, file_EXPID, file_PROTOCOLID, file_ProjectCode, file_CONC, file_USER, file_CELLTYPE, file_CONDID, file_ALLCHANNELS, file_CHANNEL_SERIES, file_POSITION_ID,
+                     file_Z_ID] = file_delim
+                    file_Z_ID, fext = file_Z_ID.split('.')
+                else:
+                    print('WARNING - Unexpected tif in experiment folder. Ignoring file: {}'.format(file))
+                    continue
+
+                if file_Z_ID != 'posZ0':
+                    continue  # Ignore all not centered images
+
+                for condition_ID in cond_IDs:  # Iterate over expected conditions and save files
+
+                    if file_CONDID == condition_ID:  # If found expected condition ID, make subfolder
+                        savefolder = os.path.join(output_folder, condition_ID)  # Append cond_ID
+                        makedir(savefolder)
+
+                        # Iterate over all expected image channels
+                        for channel in image_channels:
+                            pattern = re.compile(channel)
+
+                            if re.search(pattern, file_CHANNEL_SERIES):  # If correctly identified, make subfolder
+                                savefolder = os.path.join(savefolder,
+                                                          channel)  # Create save directory for each matched channel
+                                makedir(savefolder)
+
+                                # If correctly identified, read, crop image, make composition filename
+                                img = skimage.io.imread(os.path.join(root, file))  # Load image
+                                crop_on = True
+
+                                if len(img.shape) == 2:
+                                    img_sx, img_sy = img.shape
+                                    img_sz = 1
+                                else:
+                                    img_sz, img_sx, img_sy = img.shape
+
+                                if not all([img_sz in sz, img_sx in sx, img_sy in sy]):
+                                    if img_sy == sy[0] / 2:
+                                        print('WARNING - image {} appears cropped already.'.format(file))
+                                        crop_on = False
+                                    else:
+                                        print(
+                                            'ERROR - image size ({},{},{}) incompatible against specification ({},{},{})'.format(
+                                                img_sz, img_sx, img_sy, sz, sx, sy))
+                                        raise RuntimeError(
+                                            'ERROR - Image {} dimensions inconsistent with specification.'.format(
+                                                os.path.join(root, file)))
+
+                                if img_sz != 1:
+                                    img = numpy.mean(img, axis=0)  # Average frames
+
+                                crop = crop_mapping[channel]
+                                if crop == 0 and crop_on:
+                                    img = img[:,
+                                          0:int(img_sy / int(2))]  # Crop FoV to remove unused half - keep left side
+                                    assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
+                                elif crop == 1 and crop_on:
+                                    img = img[:,
+                                          int(img_sy / int(2)):]  # Crop FoV to remove unused half - keep right side
+                                    assert img.shape == (img_sx, int(img_sy / 2)), 'Images cropped incorrectly'
+
+                                # Assemble file name
+                                if not CONCENTRATION:
+                                    CONCENTRATION = 'NA'
+
+                                fname = '{}_{}_{}_AMR_{}_{}_{}_{}_{}_{}_{}_{}.{}'.format(file_DATE, file_EXPID,
+                                                                                         file_PROTOCOLID, CONCENTRATION,
+                                                                                         file_USER, file_CELLTYPE,
+                                                                                         file_CONDID, file_ALLCHANNELS,
+                                                                                         file_CHANNEL_SERIES,
+                                                                                         file_POSITION_ID, file_Z_ID,
+                                                                                         fext)
+
+                                skimage.io.imsave(os.path.join(savefolder, fname),
+                                                  img)  # Write image to appropriate sub folder
+                                matched = True
+
+                        if matched is False and queue is not None:
+                            queue.put('Tag match failed')
+                        if matched is True and queue is not None:
+                            queue.put('Tag match success')
+            else:
+
+                if queue is not None:
+                    queue.put('Not a tif')
+
+    return output_folder
+
 
 def SortNIM2(data_folder, output_folder = None, crop_mapping=None, img_dims=None, cond_IDs=None, image_channels=None, queue=None):
     ''' 

@@ -12,25 +12,27 @@ from classification import *
 
 if __name__ == '__main__':
 
-    data_folder = os.path.join(get_parent_path(1), 'Data', 'Exp1_HoldOut_Test', 'Repeat_7_01_12_21')
+    data_folders = [os.path.join(get_parent_path(1), 'Data', 'Exp1_HoldOut_Test', 'Repeat_9_22_02_22'), r'D:\Aleks\Phenotype detection gent, ceft and coamox\RepeatHoldout_8_27_09_22']
 
     output_segregated = os.path.join(get_parent_path(1), 'Data', 'Exp1_Segregated_Singlechannel')
     output_collected = os.path.join(get_parent_path(1), 'Data', 'Exp1_Collected_Singlechannel')
     output = os.path.join(get_parent_path(1), 'Data', 'Dataset_Exp1_Singlechannel')
 
-    cond_IDs = ['WT+ETOH','CIP+ETOH', 'RIF+ETOH']
+    cond_IDs = ['WT+ETOH','CIP+ETOH', 'RIF+ETOH','GENT+ETOH','COAMOX+ETOH']
     image_channels = ['NR', 'NR', 'NR']
     img_dims = (30, 684, 840)
 
-    pipeline = ProcessingPipeline(data_folder, 'NIM')
+    pipeline = ProcessingPipeline(data_folders, 'NIM')
     #pipeline.Sort(cond_IDs = cond_IDs, img_dims = img_dims, image_channels = image_channels, crop_mapping = {'DAPI':0, 'NR':0}, output_folder=output_segregated)
     #pipeline.Collect(cond_IDs = cond_IDs, image_channels = image_channels, output_folder = output_collected, registration_target=0)
 
     # ---GENERATE CELLS DATASET FROM SEGMENTATION MASKS AND BOTH CHANNELS, SPLIT AND SAVE. TRAIN AND TEST SEPARATELY
 
-    input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric','WT+ETOH')
-    input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric', 'CIP+ETOH')
-    input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Segmentations_edgeremoved_300Perexperiment_newmetric','RIF+ETOH')
+    input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All','WT+ETOH')
+    input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'CIP+ETOH')
+    input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All','RIF+ETOH')
+    input_path_GENT = os.path.join(get_parent_path(1), 'Data', 'New_antibiotics_segmentations_all','GENT+ETOH')
+    input_path_COAMOX = os.path.join(get_parent_path(1), 'Data', 'New_antibiotics_segmentations_all','COAMOX+ETOH')
 
     #pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_WT, output_path=input_path_WT)
     #pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_CIP, output_path= input_path_CIP)
@@ -46,10 +48,17 @@ if __name__ == '__main__':
     annots_RIF = os.path.join(input_path_RIF, 'annots')
     files_RIF = os.path.join(output_collected, 'RIF+ETOH')
 
+    annots_GENT = os.path.join(input_path_GENT, 'annots')
+    files_GENT = os.path.join(output_collected, 'GENT+ETOH')
+
+    annots_COAMOX = os.path.join(input_path_COAMOX, 'annots')
+    files_COAMOX = os.path.join(output_collected, 'COAMOX+ETOH')
 
 
-    pipeline.FileOp('TrainTestVal_split', data_sources=[files_WT, files_CIP, files_RIF], annotation_sources=[annots_WT, annots_CIP, annots_RIF],
-                    output_folder=output, test_size=1, validation_size=0, seed=42)
+
+
+    #pipeline.FileOp('TrainTestVal_split', data_sources=[files_WT, files_CIP, files_RIF, files_GENT,files_COAMOX], annotation_sources=[annots_WT, annots_CIP, annots_RIF, annots_GENT, annots_COAMOX],
+     #               output_folder=output, test_size=1, validation_size=0, seed=42)
 
     weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
     test_dir = os.path.join(output,'Test')
@@ -61,4 +70,4 @@ if __name__ == '__main__':
     evaluate_coco_metrics(dataset_folder=test_dir, config=configuration,
                           weights=weights)
 
-#inspect_mrcnn_segmenter(test_folder = test_dir, configuration = configuration, weights = weights, ids=[0,20,30])
+    inspect_dataset(dataset_folder=test_dir)

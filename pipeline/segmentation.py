@@ -116,7 +116,7 @@ class BacDataset(utils.Dataset):
             image_id = idx
 
             img_path = os.path.join(imdir, filename)
-            an_path = os.path.join(andir, os.path.splitext(filename)[0])  # Path to folder with image annotations, remove filename extension
+            an_path = os.path.join(andir, filename)  # Path to folder with image annotations, remove filename extension
 
             self.add_image('dataset', image_id=image_id, path=img_path, annotation=an_path)
 
@@ -138,8 +138,12 @@ class BacDataset(utils.Dataset):
         class_ids = list()  # initialise array for class ids of masks
 
         for count, filename in enumerate(os.listdir(path)):
-            masks[:, :, count] = skimage.io.imread(os.path.join(path, filename))
-            class_ids.append(self.class_names.index('Cell'))
+            try:
+                masks[:, :, count] = skimage.io.imread(os.path.join(path, filename))
+                class_ids.append(self.class_names.index('Cell'))
+            except:
+                print('WARNING - mask reader error, skipping mask : {}'.format(os.path.join(path, filename)))
+                continue
 
         masks[masks >= 244] = 1  # Binarize mask
 
@@ -215,7 +219,7 @@ def train_mrcnn_segmenter(**kwargs):
     configuration.STEPS_PER_EPOCH = int(np.round(len(train_set.image_ids) / config.BATCH_SIZE))  # Set 1 epoch = 1 whole pass
     configuration.VALIDATION_STEPS = int(np.round(len(val_set.image_ids) / config.BATCH_SIZE)) # Iterate through entire validation set
     configuration.display()
-
+    '''
     with tf.device(DEVICE):
         trmodel = modellib.MaskRCNN(mode='training', model_dir=output_folder, config=configuration)
         trmodel.load_weights(weights, by_name=True,
@@ -229,7 +233,7 @@ def train_mrcnn_segmenter(**kwargs):
                       augmentation=augmentation)
         trmodel.train(train_set, val_set, learning_rate=configuration.LEARNING_RATE / 10, epochs=200, layers='all',
                       augmentation=augmentation)
-
+    '''
 def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
     #Use this when no corresponding gt labels are provided
@@ -309,108 +313,6 @@ def predict_mrcnn_segmenter(source = None, mode = None, **kwargs):
 
     return output
 
-
-
-def inspect_mrcnn_segmenter(ids = None, **kwargs):
-
-    #ids - list or int, select specific image ids for inspection. If None, loop through entire dataset
-
-    test_folder = kwargs.get('test_folder', False)
-    config = kwargs.get('configuration', False)
-    weights = kwargs.get('weights', False)
-
-    if not all([test_folder, config, weights]):  # Verify input
-        raise TypeError
-
-    DEVICE = "/gpu:0"  # /cpu:0 or /gpu:0 #Select device to train on
-
-    configuration = copy.deepcopy(config) #Local copy of config to avoid modifying in outer scope
-
-    test_set = BacDataset()
-    test_set.load_dataset(test_folder)
-    test_set.prepare()
-
-
-    print('----------------------------------------------------------')
-    print('            INSPECTING THE MODEL ON TEST SET')
-    print('----------------------------------------------------------')
-    print('Test: ', len(test_set.image_ids))
-    print('Weights: ' + weights)
-    print('Class names: ', test_set.class_names)
-    print('Class IDs', test_set.class_ids)
-    print('----------------------------------------------------------')
-
-    configuration.IMAGES_PER_GPU = 1  # Process one image at a time
-    configuration.IMAGE_RESIZE_MODE = "square"  # Resize images to make the figures nice and pretty
-    configuration.IMAGE_MIN_DIM = 800
-    configuration.IMAGE_MAX_DIM = 1024
-    configuration.__init__()  # Reinitialise to update values of computed parameters
-
-    #TODO model.detect can support a batch>1, no need to feed ids one at a time. Consider rewriting.
-
-    # define the model
-    with tf.device(DEVICE):
-        model = modellib.MaskRCNN(mode='inference', model_dir='../mrcnn/', config=configuration)
-        model.load_weights(weights, by_name=True)
-
-        if ids is None:
-            image_ids = test_set.image_ids  #Loop through entire set if not supplied
-        elif not hasattr(ids, '__len__'):   #Expand to list if single value
-            image_ids = [ids]
-            assert len(image_ids) == 1
-        else:                               #Pass iterable if given one
-            image_ids = ids
-
-
-        for image_id in image_ids: #Iterate through all images
-
-            image, image_meta, gt_class_id, gt_bbox, gt_mask = \
-                modellib.load_image_gt(test_set, configuration, image_id, use_mini_mask=False)
-
-            # Run object detection
-
-            results = model.detect(np.expand_dims(image, 0), verbose=0)
-
-            # Display results
-            r = results[0]
-            print('')
-            print('---GT---')
-            log("gt_class_id", gt_class_id)
-            log("gt_bbox", gt_bbox)
-            log("gt_mask", gt_mask)
-
-            print('')
-            print('---RESULTS---')
-            log('ROIs', r['rois'])
-            log('Class_ID', r['class_ids'])
-            log('Scores', r['scores'])
-            log('Masks', r['masks'])
-
-            mAPs = []
-
-            # Compute mAP over range 0.5 to 0.95 and print it, for this image
-            mAP = utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
-                                   r['rois'], r['class_ids'], r['scores'], r['masks'],
-                                   verbose=1)
-
-            mAPs.append(mAP) #Store mAP from that image
-
-            image_ubyte = skimage.img_as_ubyte(image)  # Convert to 8bit
-
-            title = configuration.NAME + str('_IMAGE_ID_')+str(image_id)+str('_AP_')+str(np.around(AP,2))
-
-            visualize.display_differences(
-                image_ubyte,
-                gt_bbox, gt_class_id, gt_mask,
-                r['rois'], r['class_ids'], r['scores'], r['masks'],
-                test_set.class_names,
-                show_box=False, show_mask=False,
-                iou_threshold=0, score_threshold=0, ax=get_ax(), title = title)
-            plt.show()
-
-            compute_pixel_metrics(test_set, [image_id], results)  # Compute pixel confusion mats
-
-        print('AP:0.5-0.9 per image average: ' + str( np.around(mAPs,2)))
 
 
 
@@ -1008,6 +910,8 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
     COCOgt = COCO(dataset)
 
     results = predict_mrcnn_segmenter(source=dataset, mode='dataset', config=configuration, weights=weights)
+    total_detections = 0
+    images = 0
 
     coco_results = []
     for result in results:
@@ -1016,6 +920,10 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
                                            result["scores"],
                                            result["masks"].astype(np.uint8))
         coco_results.extend(image_results)
+        total_detections += result['masks'].shape[-1]
+        images += 1
+
+    print('Detected total of {} cells across {} images'.format(total_detections,images))
     COCOres = COCOgt.loadRes(coco_results)  # Create COCO object from our transformed results
 
     # Call evaluation
@@ -1032,10 +940,11 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
     if plot:
         # Find IoU0.5 and IoU0.75 and IoU0.9 parameter index
         iouThresholds = cocoEval.eval['params'].iouThrs
-        id50 = np.where((np.around(iouThresholds, 1) == 0.5))[0][
+        id50 = np.where((np.around(iouThresholds, 1) == 0.50))[0][
             0]  # Round to 1 dp to elimiate machine precision comparison problems
         id75 = np.where((np.around(iouThresholds, 2) == 0.75))[0][0]
-        id90 = np.where((np.around(iouThresholds, 1) == 0.9))[0][0]
+        id80 = np.where((np.around(iouThresholds, 2) == 0.8))[0][0]
+        id85 = np.where((np.around(iouThresholds, 2) == 0.85))[0][0]
 
         # Get recall therholds
         recThresholds = cocoEval.eval['params'].recThrs
@@ -1047,41 +956,47 @@ def evaluate_coco_metrics(dataset_folder= None, config=None, weights=None, eval_
 
         pr_50 = precisions[id50, :, :, 0, 2]  # data for IoU@0.5, all areas and max detections, all categories
         pr_75 = precisions[id75, :, :, 0, 2]  # data for IoU@0.75
-        pr_90 = precisions[id90, :, :, 0, 2]  # data for IoU@0.90
+        pr_80 = precisions[id80, :, :, 0, 2]  # data for IoU@0.80
+        pr_85 = precisions[id85, :, :, 0, 2]  # data for IoU@0.85
 
         pr_50 = np.mean(pr_50, 1)  # Average all over categories
         pr_75 = np.mean(pr_75, 1)
-        pr_90 = np.mean(pr_90, 1)
+        pr_80 = np.mean(pr_80, 1)  # data for IoU@0.80
+        pr_85 = np.mean(pr_85, 1)
 
         # Get confidence threshold scores corresponding
         scores = cocoEval.eval['scores']
 
         scr_50 = scores[id50, :, :, 0, 2]
         scr_75 = scores[id75, :, :, 0, 2]
-        scr_90 = scores[id90, :, :, 0, 2]
+        scr_80 = scores[id80, :, :, 0, 2]
+        scr_85 = scores[id85, :, :, 0, 2]
 
         scr_50 = np.mean(scr_50, 1)  # Average all over categories
         scr_75 = np.mean(scr_75, 1)
-        scr_90 = np.mean(scr_90, 1)
+        scr_80 = np.mean(scr_80, 1)
+        scr_85 = np.mean(scr_85, 1)
 
         # Plot
 
-        fig, axs = plt.subplots(2, 1, constrained_layout=True)
+        fig, axs = plt.subplots(2, 1, constrained_layout=True, dpi=600)
         fig.suptitle('Precision-Recall curve: COCO 2017 standard', y=1.05)
 
-        axs[0].set_title('Precision-Recall: IOU@0.5, 0.75, 0.9')
+        axs[0].set_title('Precision-Recall')
         axs[0].plot(recThresholds, pr_50, color='blue')
         axs[0].plot(recThresholds, pr_75, color='green')
-        axs[0].plot(recThresholds, pr_90, color='red')
-        axs[0].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.9'])
+        axs[0].plot(recThresholds, pr_80, color='red')
+        axs[0].plot(recThresholds, pr_85, color='black')
+        axs[0].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.8', 'IoU @ 0.85'])
         axs[0].xaxis.set_label_text('Recall')
         axs[0].yaxis.set_label_text('Precision')
 
-        axs[1].set_title('Confidence at Recall thresholds: IOU@0.5, 0.75, 0.9')
+        axs[1].set_title('Confidence at Recall thresholds')
         axs[1].plot(recThresholds, scr_50, color='blue')
         axs[1].plot(recThresholds, scr_75, color='green')
-        axs[1].plot(recThresholds, scr_90, color='red')
-        axs[1].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.9'])
+        axs[1].plot(recThresholds, scr_80, color='red')
+        axs[1].plot(recThresholds, scr_85, color='black')
+        axs[1].legend(['IoU @ 0.5', 'IoU @ 0.75', 'IoU @ 0.8', 'IoU @ 0.85'])
         axs[1].xaxis.set_label_text('Recall')
         axs[1].yaxis.set_label_text('Confidence threshold')
 

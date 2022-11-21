@@ -93,7 +93,7 @@ class Timelapse:
 
             ax.errorbar(self.timepoints[0::interval], tlapse[0::interval], yerr=err[0::interval], capsize=2, label=str(conc),**kwargs)
             ax.legend()
-        ax.title(self.isolate_name)
+        ax.set_title(self.isolate_name)
 
 
     def calculate_AUCs(self):
@@ -149,7 +149,7 @@ class Timelapse:
             i+=1
 
 
-        ax.set_xlabel('CIP concentration (mg/L)')
+        ax.set_xlabel('Ciprofloxacin concentration (mg/L)')
         ax.set_ylabel('Normalised total growth')
 
         ax.errorbar(X,Y,yerr=Yerr,**kwargs)
@@ -239,7 +239,8 @@ def dose_response_5PL(p,x):
 
 def fit_dose_response(X=None,Y=None, sigmaY=None, n=None, f=None,df_dp=None,title=None, labels=None, MICs=None, fit_mapping=None,isolate_codes=None,timelapses=None):
 
-    colours = ['#5d8aa8','#318ce7','#0047ab']
+    #colours = ['#5d8aa8','#318ce7','#0047ab'] #Legacy blue colours
+    colours = ['#427BB6','#B6427B','#7BB642']
     markers = ['o','^','s']
     trace_count = len(Y)
     assert len(Y) == len(sigmaY) == len(labels) == len(MICs)
@@ -288,7 +289,7 @@ def fit_dose_response(X=None,Y=None, sigmaY=None, n=None, f=None,df_dp=None,titl
 
         #ax2.plot([MIC, MIC], [0, 1], color=colour, ls=':', lw=2)  # vertical line at MIC
         #ax1.set_xlabel('CIP concentration (mg/L)')
-        ax1.set_ylabel('Ratio of susceptible detections')
+        ax1.set_ylabel('Ratio of susceptible cells')
         ax1.set_title(title)
 
         #Show fits and bounds analysis if asked for
@@ -316,12 +317,14 @@ def fit_dose_response(X=None,Y=None, sigmaY=None, n=None, f=None,df_dp=None,titl
         tlapse = timelapses[isolate_codes[i]]
         [X1,Y1,Yerr]=tlapse.plot_AUC(ax=ax2, ecolor=colour, fmt = marker, color=colour, capsize=8, label=label)
 
+        tlapse.plot_averages()
+
         #Fit to areas if requested
 
         if fit_decision:
             p0 = np.asarray([0, -1, xmid, 1, 0.4])
-            parinfo = [{'limits': (0, 1.0)}, {'limits': (-np.inf,0)}, {'limits': (0, X.max())},
-                       {'limits': (0, 1.0)}, {'limits': (0.1,0.6)}]
+            parinfo = [{'limits': (0, 1.0)}, {'limits': (-5,0)}, {'limits': (0, X.max())},
+                       {'limits': (0, 1.0)}, {'limits': (0.1,0.4)}]
             fit = kmpfit.simplefit(f, p0, X1, Y1, err=Yerr*np.sqrt(3), parinfo=parinfo)
             derivative = df_dp(fit.params, xspace)
             yhat, upper, lower = fit.confidence_band(xspace, derivative, 0.95, f)
@@ -336,7 +339,10 @@ def fit_dose_response(X=None,Y=None, sigmaY=None, n=None, f=None,df_dp=None,titl
             ax2.fill_between(xspace, lower, upper,
                              color='black', alpha=0.15)
 
+    savepath = r'C:\Users\zagajewski\Desktop\fig6.svg'
+    plt.savefig(savepath)
     plt.show()
+
 
 
 if __name__ == "__main__":
@@ -358,4 +364,4 @@ if __name__ == "__main__":
     csvpath = r'C:\Users\zagajewski\Desktop\Growth_curves_fig6_24hrs.csv'
 
     timelapses = read_csv(csvpath)
-    fit_dose_response(X=X,Y=[Y_L36929,Y_L48480,Y_L13834],sigmaY=[sigma_Y_L36929,sigma_Y_L48480,sigma_Y_L13834],n=n, f=dose_response_5PL, df_dp=d5PL_dP, title=None, labels=['EC3','EC1','EC5'], isolate_codes=['L36929','L48480','L13834'], MICs=[0.5,0.008,72], fit_mapping=[True,True,False],timelapses=timelapses)
+    fit_dose_response(X=X,Y=[Y_L48480,Y_L36929,Y_L13834],sigmaY=[sigma_Y_L48480,sigma_Y_L36929,sigma_Y_L13834],n=n, f=dose_response_5PL, df_dp=d5PL_dP, title=None, labels=['EC1','EC3','EC5'], isolate_codes=['L48480','L36929','L13834'], MICs=[0.008,0.5,72], fit_mapping=[True,True,False],timelapses=timelapses)

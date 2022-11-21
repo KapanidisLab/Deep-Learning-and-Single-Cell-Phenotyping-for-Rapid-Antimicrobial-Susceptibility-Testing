@@ -28,9 +28,9 @@ input_path_WT = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'W
 input_path_CIP = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'CIP+ETOH')
 input_path_RIF = os.path.join(get_parent_path(1), 'Data', 'Segmentations_All', 'RIF+ETOH')
 
-pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_WT, output_path = input_path_WT)
-pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_CIP, output_path= input_path_CIP)
-pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_RIF, output_path= input_path_RIF)
+#pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_WT, output_path = input_path_WT)
+#pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_CIP, output_path= input_path_CIP)
+#pipeline.FileOp('masks_from_integer_encoding', mask_path=input_path_RIF, output_path= input_path_RIF)
 
 
 #--- RETRIEVE MASKS AND MATCHING FILES, SPLIT INTO SETS INTO ONE DATABASE---
@@ -89,7 +89,7 @@ class PseudoTTY(object):
 
 sys.stdout = PseudoTTY(sys.stdout)
 
-train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
+#train_mrcnn_segmenter(train_folder = train_dir, validation_folder = val_dir, configuration = configuration, augmentation = augmentation, weights = weights_start, output_folder = output_dir)
 
 
 

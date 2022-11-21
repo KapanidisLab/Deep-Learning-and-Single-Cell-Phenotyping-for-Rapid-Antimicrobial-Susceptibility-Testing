@@ -105,7 +105,7 @@ def dataset_to_coco(dataset):
     images=[]
 
     ann_id = 1
-
+    loaded_annots_count = 0
     for image_id in dataset.image_ids:
 
         #Compute image field
@@ -131,6 +131,7 @@ def dataset_to_coco(dataset):
 
         masks, class_ids = dataset.load_mask(image_id)
         (xlim,ylim,N) = masks.shape
+        loaded_annots_count += N
 
         for i in range(N):
 
@@ -189,6 +190,7 @@ def dataset_to_coco(dataset):
             'categories' : categories
         }
 
+    print('Loaded {} GT annotations.'.format(loaded_annots_count))
     return coco
 
 class COCO:

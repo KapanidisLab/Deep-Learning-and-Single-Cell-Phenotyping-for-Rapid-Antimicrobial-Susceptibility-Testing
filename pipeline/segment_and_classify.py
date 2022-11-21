@@ -102,7 +102,10 @@ def plot_detections(segmentations=None,classifications=None,images=None, mapping
 
 if __name__ == '__main__':
     #Paths
-    image_path = os.path.join(r'C:\Users\zagajewski\Desktop\Ex1\220920_1_36929_NA_AMR_combined_1_TUBE18_posXY14.tif')
+    folder_path = r'C:\Users\zagajewski\Desktop\AMR_ms_figures\SI - Example FoVs Clinical Isolates'
+    im = r'48480_EC1_Untreated.tif'
+    image_path = os.path.join(folder_path,im)
+
     segmenter_weights = r'C:\Users\zagajewski\Desktop\Deployment\mask_rcnn_EXP1.h5'
     classifier_weights = r'C:\Users\zagajewski\Desktop\AMR_ms_data_models\WT0CIP1_Holdout_Test\MODE - DenseNet121 BS - 16 LR - 0.0005 Holdout test.h5'
 

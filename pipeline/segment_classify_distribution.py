@@ -13,7 +13,7 @@ from Resistant_Sensitive_Comparison import amend_class_labels
 
 def segment_and_classify(img=None, segmenter=None, classifier=None,filename=None):
     # Create an image for segmentation, fill 3 channels with NR
-    img_NR = np.zeros(img.shape)
+    img_NR = np.zeros((img.shape[0],img.shape[1],3))
     img_NR[:, :, 0] = img[:, :, 0]
     img_NR[:, :, 1] = img[:, :, 0]
     img_NR[:, :, 2] = img[:, :, 0]
@@ -269,7 +269,7 @@ if __name__ == '__main__':
 
     #Paths
     data_main = r'C:\Users\zagajewski\PycharmProjects\AMR\Data\Clinical_strains_full_repeats'
-    speciesID = r'36929'
+    speciesID = r'48480'
     repeatID = r'Composite'
 
     data_path = os.path.join(os.path.join(data_main,repeatID,speciesID))
@@ -303,7 +303,7 @@ if __name__ == '__main__':
                      registration_target=0)
 
     #Run inference
-    segment_classify_distribution(segmenter_weights=segmenter_weights, classifier_weights=classifier_weights, cond_IDs=cond_IDs, data_path=output_collected)
+    #segment_classify_distribution(segmenter_weights=segmenter_weights, classifier_weights=classifier_weights, cond_IDs=cond_IDs, data_path=output_collected)
 
 
 
