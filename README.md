@@ -1,2 +1,1 @@
-# AMR
-Code repository for the AMR project.
+Publication code repositiory.
